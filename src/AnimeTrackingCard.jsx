@@ -29,15 +29,12 @@ const fetchAniList = async (query, variables = {}) => {
   return response.json();
 };
 
-// 輔助函數：清理 AniList 劇情簡介中的 HTML 標籤
 const stripHtml = (html) => {
   if (!html) return '暫無劇情簡介。';
   return html.replace(/<[^>]*>?/gm, '');
 };
 
-// 統一的 AniList 資料轉換函數
 const formatAniListAnime = (media) => {
-  // 計算放送日 (將 JS 的 0=週日 轉換為 UI 的 0=週一)
   let bDayIndex = null;
   if (media.nextAiringEpisode?.airingAt) {
     const date = new Date(media.nextAiringEpisode.airingAt * 1000);
@@ -45,29 +42,27 @@ const formatAniListAnime = (media) => {
     bDayIndex = jsDay === 0 ? 6 : jsDay - 1;
   }
 
-  // 計算平均分數 (AniList 是 100 分制，轉換為 10 分制)
   const formattedScore = media.averageScore ? (media.averageScore / 10).toFixed(1) : 'N/A';
 
   return {
     id: media.id,
-    title: media.title.english || media.title.romaji || media.title.native,
-    originalName: media.title.native || media.title.romaji,
+    title: media.title.native || media.title.romaji || media.title.english,
+    originalName: media.title.english || media.title.romaji,
     imageUrl: media.coverImage.extraLarge || media.coverImage.large || '',
     score: formattedScore,
     users: media.popularity || 0,
-    rank: '--', // 列表頁暫不顯示精確排名以節省資源，Modal 中再抓取
+    rank: '--',
     eps: media.episodes || null,
     status: media.status ? media.status.replace(/_/g, ' ') : 'UNKNOWN',
     format: media.format || 'TV',
     tags: media.genres || [],
     year: media.seasonYear || '',
     season: media.season ? media.season.charAt(0).toUpperCase() + media.season.slice(1).toLowerCase() : '',
-    broadcastDayIndex: bDayIndex, // 直接儲存計算好的 Index
+    broadcastDayIndex: bDayIndex,
     synopsis: stripHtml(media.description)
   };
 };
 
-// 分類與翻譯對映
 const GENRE_MAP = {
   '全部': '', 'Action': '動作', 'Adventure': '冒險', 'Comedy': '喜劇', 
   'Drama': '劇情', 'Fantasy': '奇幻', 'Romance': '戀愛', 'Sci-Fi': '科幻', 
@@ -76,7 +71,8 @@ const GENRE_MAP = {
 };
 
 const UI_GENRES = ['全部', 'Action', 'Adventure', 'Comedy', 'Drama', 'Fantasy', 'Romance', 'Sci-Fi', 'Slice of Life', 'Sports'];
-const UI_YEARS = ['全部', ...Array.from({length: 26}, (_, i) => (2026 - i).toString()), '2000以前'];
+// 修改年份範圍：2026 到 2011，並加上 2010 以前
+const UI_YEARS = ['全部', ...Array.from({length: 16}, (_, i) => (2026 - i).toString()), '2010以前'];
 const UI_SEASONS = ['全部', 'Winter', 'Spring', 'Summer', 'Fall'];
 
 const translateGenre = (enGenre) => GENRE_MAP[enGenre] || enGenre;
@@ -140,7 +136,6 @@ export default function App() {
     setIsModalOpen(true);
     setIsModalLoading(true);
     try {
-      // 透過 GraphQL 一次取得詳細簡介、排名與角色/聲優資訊
       const query = `
         query ($id: Int) {
           Media(id: $id, type: ANIME) {
@@ -161,11 +156,9 @@ export default function App() {
       const res = await fetchAniList(query, { id: baseAnime.id });
       const detail = res.data.Media;
       
-      // 提取最高評分排名
       const ratedRankInfo = detail.rankings?.find(r => r.type === 'RATED');
       const displayRank = ratedRankInfo ? ratedRankInfo.rank : baseAnime.rank;
 
-      // 格式化角色與聲優
       const formattedCharacters = detail.characters?.edges.map(edge => ({
         id: edge.node.id,
         name: edge.node.name.full,
@@ -193,7 +186,6 @@ export default function App() {
     }
   };
 
-  // 抓取 AniList 當季新番資料
   useEffect(() => {
     let isMounted = true;
     const fetchAllSeasonData = async () => {
@@ -245,29 +237,19 @@ export default function App() {
   }, []);
 
   return (
-    <div className="h-screen w-screen bg-white text-gray-900 font-sans flex flex-col overflow-hidden selection:bg-sky-100 selection:text-sky-900">
+    <div className="h-screen w-screen bg-white text-gray-900 font-sans flex flex-col overflow-hidden selection:bg-gray-200 selection:text-black">
       
-      <nav className="h-16 shrink-0 w-full bg-white flex items-center justify-between px-6 lg:px-12 z-40 border-b border-gray-50">
+      {/* 導覽列：Logo 在左，搜尋居中，按鈕在右 */}
+      <nav className="h-16 shrink-0 w-full bg-white flex items-center justify-between px-6 lg:px-12 z-40 border-b border-gray-100">
         <div className="flex items-center gap-12">
-          <div onClick={() => setCurrentPage('home')} className="text-2xl font-black text-[#0ea5e9] cursor-pointer hover:opacity-80 transition-opacity tracking-tight">
-            aniview <span className="text-[10px] bg-sky-100 text-sky-600 px-1.5 py-0.5 rounded ml-1 font-bold align-middle uppercase tracking-wider">AniList</span>
-          </div>
-          <div className="hidden md:flex gap-8 font-semibold text-sm text-gray-500">
-            <button onClick={() => setCurrentPage('home')} className={`transition-colors flex items-center gap-2 ${currentPage === 'home' ? 'text-black' : 'hover:text-black'}`}>
-              首頁 ↗
-            </button>
-            <button onClick={() => setCurrentPage('anime')} className={`transition-colors ${currentPage === 'anime' ? 'text-black' : 'hover:text-black'}`}>
-              所有動畫
-            </button>
-            <button onClick={() => setCurrentPage('profile')} className={`transition-colors ${currentPage === 'profile' ? 'text-black' : 'hover:text-black'}`}>
-              我的清單
-            </button>
+          <div onClick={() => setCurrentPage('home')} className="text-2xl font-black text-black cursor-pointer hover:opacity-80 transition-opacity tracking-tight">
+            aniview
           </div>
         </div>
         
-        <div className="flex items-center gap-6">
+        <div className="flex items-center gap-8">
           <div className="relative hidden sm:flex items-center group">
-            <svg className="absolute left-3 w-4 h-4 text-gray-400 group-focus-within:text-sky-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+            <svg className="absolute left-3 w-4 h-4 text-gray-400 group-focus-within:text-black transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
             <input 
               type="text" 
               placeholder="搜尋動漫..." 
@@ -276,8 +258,17 @@ export default function App() {
                 setSearchQuery(e.target.value);
                 if (e.target.value && currentPage === 'home') setCurrentPage('anime');
               }}
-              className="bg-gray-50 border border-gray-200 text-sm text-gray-900 placeholder-gray-400 pl-9 pr-4 py-1.5 rounded-md w-48 md:w-64 focus:outline-none focus:border-sky-400 focus:ring-1 focus:ring-sky-400 transition-all"
+              className="bg-gray-50 text-sm text-gray-900 placeholder-gray-400 pl-9 pr-4 py-2 rounded-none w-48 md:w-64 focus:outline-none focus:bg-gray-100 transition-all"
             />
+          </div>
+          
+          <div className="hidden md:flex gap-8 font-bold text-sm text-gray-400">
+            <button onClick={() => setCurrentPage('anime')} className={`transition-colors ${currentPage === 'anime' ? 'text-black' : 'hover:text-black'}`}>
+              所有動畫
+            </button>
+            <button onClick={() => setCurrentPage('profile')} className={`transition-colors ${currentPage === 'profile' ? 'text-black' : 'hover:text-black'}`}>
+              個人首頁
+            </button>
           </div>
         </div>
       </nav>
@@ -308,38 +299,38 @@ export default function App() {
         )}
       </main>
 
-      {/* 詳細資訊 Modal */}
+      {/* 詳細資訊 Modal - 極簡矩形無邊框 */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
-          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm cursor-pointer" onClick={() => setIsModalOpen(false)}></div>
-          <div className="relative bg-white w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-xl shadow-2xl flex flex-col md:flex-row">
-            <button onClick={() => setIsModalOpen(false)} className="absolute top-4 right-4 z-10 bg-gray-100 text-gray-500 hover:bg-gray-200 hover:text-black w-8 h-8 rounded-full flex items-center justify-center transition-colors">✕</button>
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm cursor-pointer" onClick={() => setIsModalOpen(false)}></div>
+          <div className="relative bg-white w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-none shadow-2xl flex flex-col md:flex-row">
+            <button onClick={() => setIsModalOpen(false)} className="absolute top-4 right-4 z-10 bg-gray-100 text-gray-500 hover:bg-black hover:text-white w-8 h-8 rounded-none flex items-center justify-center transition-colors">✕</button>
 
             {isModalLoading ? (
               <div className="w-full p-32 text-center text-gray-400 font-mono text-sm flex flex-col items-center">
-                <svg className="animate-spin h-8 w-8 text-sky-400 mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                Fetching rich data from AniList...
+                <svg className="animate-spin h-8 w-8 text-black mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                Fetching data...
               </div>
             ) : modalData && (
               <>
                 <div className="w-full md:w-[35%] bg-gray-50 p-8 flex flex-col items-center border-r border-gray-100">
-                  <img src={modalData.imageUrl} alt="poster" className="w-full max-w-[220px] rounded-lg shadow-md mb-6" />
+                  <img src={modalData.imageUrl} alt="poster" className="w-full max-w-[220px] rounded-none shadow-md mb-6 bg-gray-200" />
                   
                   {(() => {
                     const inPlaylist = myPlaylist.find(item => item.id === modalData.id);
                     return inPlaylist ? (
                       <div className="w-full mb-6">
-                        <div className="bg-white text-center py-2 rounded-t-md font-bold text-gray-800 text-sm border border-gray-200 border-b-0 flex justify-between px-4 shadow-sm">
+                        <div className="bg-white text-center py-2 font-bold text-gray-800 text-sm border-b border-gray-100 flex justify-between px-4">
                           <span>進度 ({inPlaylist.watched} / {modalData.eps || '?'})</span>
-                          <span className="text-sky-600 font-medium">{inPlaylist.status === LIST_STATUS.COMPLETED ? '已看完' : inPlaylist.status === LIST_STATUS.PLANNED ? '待播中' : '觀看中'}</span>
+                          <span className="text-black font-medium">{inPlaylist.status === LIST_STATUS.COMPLETED ? '已看完' : inPlaylist.status === LIST_STATUS.PLANNED ? '待播中' : '觀看中'}</span>
                         </div>
-                        <div className="bg-white p-3 rounded-b-md border border-gray-200 flex gap-2 overflow-x-auto scrollbar-hide shadow-sm">
+                        <div className="bg-white p-3 flex gap-2 overflow-x-auto scrollbar-hide">
                           {Array.from({ length: modalData.eps || 12 }, (_, i) => i + 1).map(ep => (
                             <button
                               key={ep}
                               onClick={() => handleUpdateProgress(modalData.id, ep)}
-                              className={`flex-none w-8 h-8 rounded text-xs font-bold transition-all border ${
-                                ep <= inPlaylist.watched ? 'bg-sky-500 border-sky-500 text-white' : 'bg-gray-50 border-gray-200 text-gray-400 hover:bg-gray-100'
+                              className={`flex-none w-8 h-8 rounded-none text-xs font-bold transition-all ${
+                                ep <= inPlaylist.watched ? 'bg-black text-white' : 'bg-gray-50 text-gray-400 hover:bg-gray-200'
                               }`}
                             >
                               {ep}
@@ -349,14 +340,14 @@ export default function App() {
                       </div>
                     ) : (
                       <div className="w-full flex flex-col gap-2 mb-6">
-                        <button onClick={() => handleAddToList(modalData, LIST_STATUS.WATCHING)} className="w-full bg-[#0ea5e9] text-white hover:bg-sky-600 py-2.5 rounded-md font-bold transition-all text-sm">開始觀看</button>
-                        <button onClick={() => handleAddToList(modalData, LIST_STATUS.PLANNED)} className="w-full bg-white text-black hover:bg-gray-50 py-2.5 rounded-md font-bold transition-all border border-gray-200 text-sm shadow-sm">加入待播清單</button>
+                        <button onClick={() => handleAddToList(modalData, LIST_STATUS.WATCHING)} className="w-full bg-black text-white hover:bg-gray-800 py-3 rounded-none font-bold transition-all text-sm">開始觀看</button>
+                        <button onClick={() => handleAddToList(modalData, LIST_STATUS.PLANNED)} className="w-full bg-gray-100 text-black hover:bg-gray-200 py-3 rounded-none font-bold transition-all text-sm">加入待播清單</button>
                       </div>
                     );
                   })()}
                   
                   <div className="w-full space-y-3 text-sm text-gray-600 font-medium mt-auto">
-                    <div className="flex justify-between pb-2 border-b border-gray-200"><span>評分</span><span className="text-black">{modalData.score} <StarIcon className="inline w-4 h-4 text-yellow-400 -mt-1"/></span></div>
+                    <div className="flex justify-between pb-2 border-b border-gray-200"><span>評分</span><span className="text-black">{modalData.score} <StarIcon className="inline w-4 h-4 text-black -mt-1"/></span></div>
                     <div className="flex justify-between pb-2 border-b border-gray-200"><span>排名</span><span className="text-black">#{modalData.rank}</span></div>
                     <div className="flex justify-between pb-2 border-b border-gray-200"><span>總集數</span><span className="text-black">{modalData.eps || '?'} 集</span></div>
                     <div className="flex justify-between pb-2 border-b border-gray-200"><span>放送日期</span><span className="text-black">{modalData.airDate}</span></div>
@@ -366,8 +357,8 @@ export default function App() {
                 <div className="w-full md:w-[65%] p-8 md:p-10 bg-white overflow-y-auto max-h-[90vh]">
                   <div className="mb-8">
                     <div className="flex items-center gap-2 mb-2">
-                      <span className="bg-sky-100 text-sky-700 text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider">{modalData.status}</span>
-                      <span className="bg-gray-100 text-gray-600 text-[10px] font-bold px-2 py-0.5 rounded">{modalData.format}</span>
+                      <span className="bg-black text-white text-[10px] font-bold px-2 py-0.5 rounded-none uppercase tracking-wider">{modalData.status}</span>
+                      <span className="bg-gray-100 text-gray-600 text-[10px] font-bold px-2 py-0.5 rounded-none">{modalData.format}</span>
                     </div>
                     <h2 className="text-3xl font-black text-black mb-1 leading-tight">{modalData.title}</h2>
                     <p className="text-sm text-gray-400 mb-6 font-mono">{modalData.originalName}</p>
@@ -378,11 +369,11 @@ export default function App() {
 
                   {modalData.characters && modalData.characters.length > 0 && (
                     <div className="mt-8 border-t border-gray-100 pt-8">
-                      <h3 className="text-sm font-bold text-black mb-4 uppercase tracking-wider">Characters & Voice Actors</h3>
+                      <h3 className="text-sm font-bold text-black mb-4 uppercase tracking-wider">Characters</h3>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         {modalData.characters.map(char => (
-                          <div key={char.id} className="bg-gray-50 rounded-lg p-3 flex items-center gap-3 border border-gray-100 hover:border-gray-200 transition-colors shadow-sm">
-                            {char.image ? <img src={char.image} alt={char.name} className="w-10 h-10 rounded-full object-cover shrink-0" /> : <div className="w-10 h-10 rounded-full bg-gray-200 shrink-0"></div>}
+                          <div key={char.id} className="bg-gray-50 p-3 flex items-center gap-3 rounded-none transition-colors">
+                            {char.image ? <img src={char.image} alt={char.name} className="w-10 h-10 rounded-none object-cover shrink-0" /> : <div className="w-10 h-10 rounded-none bg-gray-200 shrink-0"></div>}
                             <div className="overflow-hidden">
                               <p className="text-sm text-gray-900 font-bold truncate">{char.name}</p>
                               <p className="text-xs text-gray-500 truncate">CV: {char.actorName}</p>
@@ -410,7 +401,6 @@ function HomeView({ allSeasonAnime, onAdd, onOpenModal, isLoading, setCurrentPag
   const currentDayIndex = currentJS === 0 ? 6 : currentJS - 1; 
   const [activeTab, setActiveTab] = useState(currentDayIndex);
   
-  // 依據計算好的 broadcastDayIndex 進行分類
   const schedule = useMemo(() => {
     const daysZh = ['一', '二', '三', '四', '五', '六', '日'];
     const map = Array.from({ length: 7 }, (_, i) => ({ id: i, name: `周${daysZh[i]}`, items: [] }));
@@ -430,67 +420,66 @@ function HomeView({ allSeasonAnime, onAdd, onOpenModal, isLoading, setCurrentPag
   const currentList = schedule.find(s => s.id === activeTab)?.items || [];
   
   return (
-    <div className="flex flex-col lg:flex-row h-full overflow-hidden">
-      <div className="w-full lg:w-[45%] h-full flex flex-col justify-center p-12 lg:pl-24 lg:pr-16 bg-white shrink-0 overflow-y-auto">
+    <div className="flex flex-col lg:flex-row h-full overflow-hidden bg-white">
+      <div className="w-full lg:w-[45%] h-full flex flex-col justify-center p-12 lg:pl-24 lg:pr-16 shrink-0 overflow-y-auto">
         <div className="max-w-md">
           <p className="text-sm font-medium text-gray-500 mb-6 flex items-center gap-2">
-            Powered by AniList GraphQL API <svg className="w-4 h-4 text-sky-500" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2L2 22h20L12 2zm0 4.5l6.5 13h-13L12 6.5z"></path></svg>
+            Powered by AniList API <svg className="w-4 h-4 text-black" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2L2 22h20L12 2zm0 4.5l6.5 13h-13L12 6.5z"></path></svg>
           </p>
           
-          <h1 className="text-5xl lg:text-7xl font-black tracking-tight text-[#0ea5e9] mb-6 font-mono">
+          <h1 className="text-5xl lg:text-7xl font-black tracking-tight text-black mb-6 font-mono">
             Aniview<br/>Tracker
           </h1>
           
           <p className="text-gray-600 text-base leading-relaxed mb-10">
-            Aniview 已經升級為 <strong>AniList GraphQL</strong> 架構。
-            <br/>享受極致的載入速度、豐富的角色聲優庫、以及無 CORS 限制的現代化開發體驗。
+            以純粹的黑白極簡主義，重新定義動漫追蹤體驗。
+            <br/>專注於內容本身，無邊框、無干擾、極致流暢。
           </p>
 
           <div className="grid grid-cols-2 gap-y-4 gap-x-8 mb-10 text-sm font-medium text-gray-800">
-            <div className="flex items-center gap-3"><CheckIcon /> GraphQL 原生查詢</div>
+            <div className="flex items-center gap-3"><CheckIcon /> 極簡無邊框視覺</div>
             <div className="flex items-center gap-3"><CheckIcon /> 豐富角色聲優庫</div>
-            <div className="flex items-center gap-3"><CheckIcon /> 零 CORS 限制存取</div>
-            <div className="flex items-center gap-3"><CheckIcon /> 自動濾除限制內容</div>
+            <div className="flex items-center gap-3"><CheckIcon /> 無縫離線儲存</div>
+            <div className="flex items-center gap-3"><CheckIcon /> 純淨瀏覽體驗</div>
           </div>
 
           <div className="flex items-center gap-4">
-            <button onClick={() => setCurrentPage('anime')} className="bg-[#0ea5e9] text-white px-6 py-3 rounded-md font-bold text-sm hover:bg-sky-600 transition-colors shadow-md shadow-sky-200">
-              Explore Anime
+            <button onClick={() => setCurrentPage('anime')} className="bg-black text-white px-8 py-3 rounded-none font-bold text-sm hover:bg-gray-800 transition-colors">
+              Explore
             </button>
-            <button onClick={() => setCurrentPage('profile')} className="text-gray-600 font-bold text-sm flex items-center gap-2 hover:text-sky-600 transition-colors">
+            <button onClick={() => setCurrentPage('profile')} className="text-gray-600 font-bold text-sm flex items-center gap-2 hover:text-black transition-colors">
               My Profile <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
             </button>
           </div>
         </div>
       </div>
 
-      <div className="w-full lg:w-[55%] h-full bg-gray-50 lg:border-l lg:border-gray-200 flex flex-col pt-8 shadow-inner">
+      <div className="w-full lg:w-[55%] h-full flex flex-col pt-8">
         <div className="px-8 mb-6 flex items-center">
-          <div className="bg-white border border-gray-200 rounded-md py-2 px-4 flex items-center gap-3 text-xs font-mono w-fit max-w-full overflow-hidden shadow-sm">
-            <span className="bg-[#2b2d42] text-white px-2 py-0.5 rounded text-[10px] font-black tracking-wide">POST</span>
-            <span className="text-gray-600 truncate">https://graphql.anilist.co (query: $season, $year)</span>
+          <div className="bg-gray-50 py-2 px-4 flex items-center gap-3 text-xs font-mono w-fit max-w-full overflow-hidden">
+            <span className="bg-black text-white px-2 py-0.5 rounded-none text-[10px] font-black tracking-wide">POST</span>
+            <span className="text-gray-600 truncate">graphql.anilist.co (query: $season, $year)</span>
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-8 pb-16 custom-scrollbar">
+        <div className="flex-1 overflow-y-auto px-8 pb-16 scrollbar-hide">
           {!isLoading && allSeasonAnime.length > 0 && (
-            <div className="flex gap-4 mb-6 overflow-x-auto custom-scrollbar pb-2">
+            <div className="flex gap-6 mb-6 overflow-x-auto scrollbar-hide pb-2">
               {schedule.map((day) => (
-                <button 
+                <span 
                   key={day.id} 
                   onClick={() => setActiveTab(day.id)} 
-                  className={`px-4 py-2 rounded-full text-sm transition-all whitespace-nowrap flex items-center gap-1 font-bold ${activeTab === day.id ? 'bg-[#0ea5e9] text-white shadow-md' : 'bg-white text-gray-500 hover:text-gray-900 border border-gray-200'}`}
+                  className={`text-base cursor-pointer transition-colors whitespace-nowrap flex items-center gap-1 ${activeTab === day.id ? 'text-black font-black' : 'text-gray-300 font-medium hover:text-gray-600'}`}
                 >
-                  {day.name} {day.id === currentDayIndex && <span className="text-[10px] opacity-80 ml-1">(今日)</span>}
-                </button>
+                  {day.name} {day.id === currentDayIndex && <span className="text-[10px] opacity-80 ml-1 font-normal">(今日)</span>}
+                </span>
               ))}
             </div>
           )}
 
           {isLoading ? (
             <div className="w-full h-64 flex flex-col items-center justify-center text-gray-400 space-y-4">
-              <svg className="animate-spin h-8 w-8 text-sky-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-              <div className="font-mono text-xs">Fetching AniList seasonal data...</div>
+              <svg className="animate-spin h-8 w-8 text-black" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -498,7 +487,7 @@ function HomeView({ allSeasonAnime, onAdd, onOpenModal, isLoading, setCurrentPag
                 <AnimeCardHorizontal key={`hero-${anime.id}`} anime={anime} onAdd={() => onAdd(anime, LIST_STATUS.PLANNED)} onClick={() => onOpenModal(anime)} />
               ))}
               {currentList.length === 0 && (
-                <div className="col-span-1 md:col-span-2 text-center py-12 text-gray-400 border border-gray-200 border-dashed rounded-lg text-sm bg-white">
+                <div className="col-span-1 md:col-span-2 text-center py-12 text-gray-400 border border-gray-100 border-dashed rounded-none text-sm bg-white">
                   本日暫無動漫更新
                 </div>
               )}
@@ -508,53 +497,52 @@ function HomeView({ allSeasonAnime, onAdd, onOpenModal, isLoading, setCurrentPag
       </div>
       
       <style dangerouslySetInnerHTML={{__html: `
-        .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
-        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 20px; }
+        .scrollbar-hide::-webkit-scrollbar { display: none; }
+        .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
       `}} />
     </div>
   );
 }
 
 // ==========================================
-// 子元件：橫向卡片
+// 子元件：橫向卡片 - 純直角無邊框設計
 // ==========================================
 function AnimeCardHorizontal({ anime, onClick, onAdd }) {
   return (
-    <div className="flex gap-4 py-3 px-3 bg-white border border-gray-100 shadow-sm rounded-xl cursor-pointer relative group hover:shadow-md transition-shadow" onClick={onClick}>
-      <img src={anime.imageUrl} alt={anime.title} className="w-[95px] h-[135px] object-cover rounded-lg shrink-0 bg-gray-100" />
-      <div className="flex flex-col flex-1 py-0.5 min-w-0">
+    <div className="flex gap-4 py-3 bg-white cursor-pointer relative group transition-opacity hover:opacity-80" onClick={onClick}>
+      <img src={anime.imageUrl} alt={anime.title} className="w-[95px] h-[135px] object-cover rounded-none shrink-0 bg-gray-100" />
+      <div className="flex flex-col flex-1 py-0.5 min-w-0 border-b border-gray-50 group-hover:border-transparent transition-colors">
         
-        <div className={`text-[11px] font-bold mb-1 uppercase tracking-wide ${anime.status === 'RELEASING' ? 'text-green-500' : 'text-gray-400'}`}>
+        <div className={`text-[11px] font-bold mb-1 uppercase tracking-wide ${anime.status === 'RELEASING' ? 'text-orange-500' : 'text-gray-400'}`}>
           {anime.status}
         </div>
         
-        <div className="text-[12px] text-gray-500 font-medium mb-1.5 flex items-center gap-2">
+        <div className="text-[12px] text-gray-400 font-medium mb-1.5 flex items-center gap-2">
           {anime.season || anime.year ? <span>{anime.season} {anime.year}</span> : null}
           <span>{anime.eps ? `${anime.eps} eps` : '? eps'}</span>
         </div>
         
-        <h3 className="text-[15px] font-bold text-gray-900 leading-tight line-clamp-2 pr-2 mb-2 group-hover:text-sky-600 transition-colors">
+        <h3 className="text-[15px] font-bold text-black leading-tight line-clamp-2 pr-2 mb-2">
           {anime.title}
         </h3>
         
         <div className="flex items-center gap-5 mb-2 mt-auto">
           <div className="flex flex-col">
-            <span className="text-[14px] text-black font-bold leading-none mb-1 flex items-center gap-1"><StarIcon className="w-3.5 h-3.5 text-yellow-400"/> {anime.score}</span>
-            <span className="text-[10px] text-gray-500 leading-none">{anime.users ? (anime.users/1000).toFixed(1)+'k' : '0'} users</span>
+            <span className="text-[14px] text-black font-bold leading-none mb-1 flex items-center gap-1"><StarIcon className="w-3.5 h-3.5 text-black"/> {anime.score}</span>
+            <span className="text-[10px] text-gray-400 leading-none">{anime.users ? (anime.users/1000).toFixed(1)+'k' : '0'} users</span>
           </div>
         </div>
         
         <div className="flex flex-wrap gap-1">
           {anime.tags?.slice(0, 2).map(tag => (
-            <span key={tag} className="text-[10px] text-sky-700 bg-sky-50 border border-sky-100 font-bold px-1.5 py-0.5 rounded">
+            <span key={tag} className="text-[10px] text-black bg-gray-100 font-bold px-1.5 py-0.5 rounded-none">
               {translateGenre(tag)}
             </span>
           ))}
         </div>
       </div>
 
-      <button onClick={(e) => { e.stopPropagation(); onAdd(anime); }} className="absolute bottom-3 right-3 bg-white text-gray-400 border border-gray-200 w-8 h-8 rounded-full shadow-sm opacity-0 group-hover:opacity-100 transition-all flex items-center justify-center font-bold hover:bg-[#0ea5e9] hover:text-white hover:border-sky-500" title="加入待播清單">
+      <button onClick={(e) => { e.stopPropagation(); onAdd(anime); }} className="absolute bottom-3 right-0 bg-gray-100 text-black w-8 h-8 rounded-none opacity-0 group-hover:opacity-100 transition-all flex items-center justify-center font-bold hover:bg-black hover:text-white" title="加入待播清單">
         +
       </button>
     </div>
@@ -565,6 +553,7 @@ function AnimeCardHorizontal({ anime, onClick, onAdd }) {
 // 子元件：所有動畫 (搜尋與目錄) 
 // ==========================================
 function CatalogView({ searchQuery, onAdd, onOpenModal }) {
+  const [activeFormat, setActiveFormat] = useState('TV');
   const [activeGenre, setActiveGenre] = useState('全部');
   const [activeSort, setActiveSort] = useState('SCORE_DESC');
   const [activeYear, setActiveYear] = useState('全部');
@@ -575,32 +564,35 @@ function CatalogView({ searchQuery, onAdd, onOpenModal }) {
   const [page, setPage] = useState(1);
   const [hasNextPage, setHasNextPage] = useState(false);
 
-  // 篩選條件改變時回第一頁
-  useEffect(() => { setPage(1); }, [searchQuery, activeGenre, activeSort, activeYear, activeSeason]);
+  useEffect(() => { setPage(1); }, [searchQuery, activeGenre, activeSort, activeYear, activeSeason, activeFormat]);
 
   useEffect(() => {
     let isMounted = true;
     const fetchFilteredData = async () => {
       setIsLoading(true);
       try {
-        // 構建 GraphQL 變數
         const variables = { page };
         if (searchQuery) variables.search = searchQuery;
         if (activeGenre !== '全部') variables.genre = activeGenre;
         if (activeSeason !== '全部') variables.season = activeSeason.toUpperCase();
         
-        if (activeYear !== '全部' && activeYear !== '2000以前') {
+        // 處理 2010 以前的特殊邏輯
+        if (activeYear !== '全部' && activeYear !== '2010以前') {
           variables.year = parseInt(activeYear);
+        } else if (activeYear === '2010以前') {
+          variables.startDate_lesser = 20110000; 
         }
 
-        // 定義排序
         variables.sort = [activeSort];
+        
+        // 切換 Format (TV, OVA, MOVIE)
+        variables.format_in = activeFormat === 'TV' ? ['TV', 'ONA'] : [activeFormat];
 
         const query = `
-          query ($page: Int, $search: String, $genre: String, $season: MediaSeason, $year: Int, $sort: [MediaSort]) {
+          query ($page: Int, $search: String, $genre: String, $season: MediaSeason, $year: Int, $sort: [MediaSort], $format_in: [MediaFormat], $startDate_lesser: Int) {
             Page(page: $page, perPage: 24) {
               pageInfo { hasNextPage }
-              media(search: $search, genre: $genre, season: $season, seasonYear: $year, type: ANIME, sort: $sort, isAdult: false, countryOfOrigin: "JP", format_in: [TV, ONA, MOVIE, OVA]) {
+              media(search: $search, genre: $genre, season: $season, seasonYear: $year, startDate_lesser: $startDate_lesser, type: ANIME, sort: $sort, isAdult: false, countryOfOrigin: "JP", format_in: $format_in) {
                 id
                 title { romaji english native }
                 coverImage { large extraLarge }
@@ -634,40 +626,52 @@ function CatalogView({ searchQuery, onAdd, onOpenModal }) {
     
     const timeoutId = setTimeout(fetchFilteredData, 500);
     return () => { isMounted = false; clearTimeout(timeoutId); };
-  }, [searchQuery, activeGenre, activeSort, activeYear, activeSeason, page]);
+  }, [searchQuery, activeGenre, activeSort, activeYear, activeSeason, activeFormat, page]);
 
   return (
-    <div className="h-full overflow-y-auto px-6 lg:px-16 py-10 pb-24 bg-gray-50 custom-scrollbar">
+    <div className="h-full overflow-y-auto px-6 lg:px-16 py-10 pb-24 bg-white scrollbar-hide">
       <div className="max-w-7xl mx-auto">
-        <h1 className="text-3xl font-black text-black mb-8 font-mono">
-          Explore Database
+        <h1 className="text-3xl font-black text-black mb-6 font-mono">
+          Explore
           {searchQuery && <span className="text-lg text-gray-400 font-sans ml-4">/ Search: "{searchQuery}"</span>}
         </h1>
         
-        <div className="flex flex-col mb-8 bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-          <div className="flex flex-col gap-5 w-full">
-            <div className="flex items-center gap-4 overflow-x-auto custom-scrollbar pb-2">
-              <span className="text-xs font-bold text-gray-400 uppercase tracking-wider shrink-0 w-16">Genres</span>
-              <div className="flex gap-2">
+        <div className="flex gap-1 mb-8 border-b border-gray-100 pb-2">
+          {['TV', 'OVA', 'MOVIE'].map(format => (
+            <button
+              key={format}
+              onClick={() => setActiveFormat(format)}
+              className={`px-6 py-2 text-sm font-bold transition-all rounded-none ${activeFormat === format ? 'bg-black text-white' : 'bg-transparent text-gray-400 hover:text-black'}`}
+            >
+              {format}
+            </button>
+          ))}
+        </div>
+        
+        <div className="flex flex-col mb-10">
+          <div className="flex flex-col gap-6 w-full">
+            <div className="flex items-center gap-6 overflow-x-auto scrollbar-hide">
+              <span className="text-xs font-bold text-black uppercase tracking-wider shrink-0 w-12">Genre</span>
+              <div className="flex gap-2 w-max">
                 {UI_GENRES.map(g => (
-                  <button key={`genre-${g}`} onClick={() => setActiveGenre(g)} className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all whitespace-nowrap ${activeGenre === g ? 'bg-[#0ea5e9] text-white shadow' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+                  <button key={`genre-${g}`} onClick={() => setActiveGenre(g)} className={`shrink-0 px-4 py-1.5 rounded-none text-xs font-bold transition-all whitespace-nowrap ${activeGenre === g ? 'bg-black text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>
                     {translateGenre(g)}
                   </button>
                 ))}
               </div>
             </div>
 
-            <div className="flex items-center gap-4 overflow-x-auto custom-scrollbar pb-2">
-              <span className="text-xs font-bold text-gray-400 uppercase tracking-wider shrink-0 w-16">Years</span>
-              <div className="flex gap-2">
+            <div className="flex items-center gap-6 overflow-x-auto scrollbar-hide">
+              <span className="text-xs font-bold text-black uppercase tracking-wider shrink-0 w-12">Year</span>
+              <div className="flex gap-2 w-max">
                 {UI_YEARS.map(y => (
                   <button 
                     key={`year-${y}`} 
                     onClick={() => { 
                       setActiveYear(y); 
-                      if (y === '全部' || y === '2000以前') setActiveSeason('全部'); 
+                      if (y === '全部' || y === '2010以前') setActiveSeason('全部'); 
                     }} 
-                    className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all whitespace-nowrap ${activeYear === y ? 'bg-[#0ea5e9] text-white shadow' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+                    className={`shrink-0 px-4 py-1.5 rounded-none text-xs font-bold transition-all whitespace-nowrap ${activeYear === y ? 'bg-black text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
                   >
                     {y}
                   </button>
@@ -675,11 +679,11 @@ function CatalogView({ searchQuery, onAdd, onOpenModal }) {
               </div>
             </div>
 
-            <div className={`flex items-center gap-4 overflow-x-auto custom-scrollbar pb-2 transition-opacity ${activeYear === '全部' || activeYear === '2000以前' ? 'opacity-40 pointer-events-none' : ''}`}>
-              <span className="text-xs font-bold text-gray-400 uppercase tracking-wider shrink-0 w-16">Seasons</span>
-              <div className="flex gap-2">
+            <div className={`flex items-center gap-6 overflow-x-auto scrollbar-hide transition-opacity ${activeYear === '全部' || activeYear === '2010以前' ? 'opacity-20 pointer-events-none' : ''}`}>
+              <span className="text-xs font-bold text-black uppercase tracking-wider shrink-0 w-12">Season</span>
+              <div className="flex gap-2 w-max">
                 {UI_SEASONS.map(s => (
-                  <button key={`season-${s}`} onClick={() => setActiveSeason(s)} className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all whitespace-nowrap ${activeSeason === s ? 'bg-[#0ea5e9] text-white shadow' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+                  <button key={`season-${s}`} onClick={() => setActiveSeason(s)} className={`shrink-0 px-4 py-1.5 rounded-none text-xs font-bold transition-all whitespace-nowrap ${activeSeason === s ? 'bg-black text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>
                     {s}
                   </button>
                 ))}
@@ -687,37 +691,36 @@ function CatalogView({ searchQuery, onAdd, onOpenModal }) {
             </div>
           </div>
           
-          <div className="flex justify-end pt-5 mt-3 border-t border-gray-100">
-            <div className="flex gap-2 shrink-0 bg-gray-100 p-1 rounded-lg">
-              <button onClick={() => setActiveSort('SCORE_DESC')} className={`px-4 py-1.5 rounded text-xs font-bold transition-all ${activeSort === 'SCORE_DESC' ? 'bg-white text-black shadow-sm' : 'text-gray-500 hover:text-gray-800'}`}>Top Rated</button>
-              <button onClick={() => setActiveSort('TRENDING_DESC')} className={`px-4 py-1.5 rounded text-xs font-bold transition-all ${activeSort === 'TRENDING_DESC' ? 'bg-white text-black shadow-sm' : 'text-gray-500 hover:text-gray-800'}`}>Trending Now</button>
-              <button onClick={() => setActiveSort('START_DATE_DESC')} className={`px-4 py-1.5 rounded text-xs font-bold transition-all ${activeSort === 'START_DATE_DESC' ? 'bg-white text-black shadow-sm' : 'text-gray-500 hover:text-gray-800'}`}>Latest Added</button>
+          <div className="flex justify-end pt-6 mt-4">
+            <div className="flex gap-2 shrink-0">
+              <button onClick={() => setActiveSort('SCORE_DESC')} className={`px-4 py-1.5 rounded-none text-xs font-bold transition-all border ${activeSort === 'SCORE_DESC' ? 'bg-black text-white border-black' : 'bg-transparent text-gray-400 border-gray-200 hover:border-black hover:text-black'}`}>Top Rated</button>
+              <button onClick={() => setActiveSort('TRENDING_DESC')} className={`px-4 py-1.5 rounded-none text-xs font-bold transition-all border ${activeSort === 'TRENDING_DESC' ? 'bg-black text-white border-black' : 'bg-transparent text-gray-400 border-gray-200 hover:border-black hover:text-black'}`}>Trending Now</button>
+              <button onClick={() => setActiveSort('START_DATE_DESC')} className={`px-4 py-1.5 rounded-none text-xs font-bold transition-all border ${activeSort === 'START_DATE_DESC' ? 'bg-black text-white border-black' : 'bg-transparent text-gray-400 border-gray-200 hover:border-black hover:text-black'}`}>Latest</button>
             </div>
           </div>
         </div>
 
         {isLoading ? (
           <div className="text-center py-32 text-gray-400 font-mono text-sm flex flex-col items-center">
-            <svg className="animate-spin h-6 w-6 text-sky-400 mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-            Querying AniList GraphQL...
+            <svg className="animate-spin h-6 w-6 text-black mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+            Querying AniList...
           </div>
         ) : data.length === 0 ? (
-          <div className="text-center py-32 text-gray-400 bg-white rounded-lg border border-gray-200 border-dashed text-sm">
-            No results found. Try adjusting your filters.
+          <div className="text-center py-32 text-gray-400 bg-gray-50 border border-gray-100 border-dashed rounded-none text-sm">
+            No results found.
           </div>
         ) : (
           <>
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 mb-10">
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 mb-10">
               {data.map((anime) => (
                 <AnimeCardHorizontal key={`cat-${anime.id}`} anime={anime} onAdd={() => onAdd(anime, LIST_STATUS.PLANNED)} onClick={() => onOpenModal(anime)} />
               ))}
             </div>
             
-            {/* 實作基於 AniList pageInfo 的分頁 */}
-            <div className="flex justify-center items-center gap-4 pt-4">
-              <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} className="px-4 py-2 text-sm font-bold text-gray-600 disabled:opacity-30 bg-white rounded-lg border border-gray-200 hover:bg-gray-50 shadow-sm transition-all">Previous</button>
-              <span className="text-sm font-mono text-gray-500 font-bold bg-gray-200 px-4 py-1.5 rounded-lg">Page {page}</span>
-              <button onClick={() => setPage(p => p + 1)} disabled={!hasNextPage} className="px-4 py-2 text-sm font-bold text-gray-600 disabled:opacity-30 bg-white rounded-lg border border-gray-200 hover:bg-gray-50 shadow-sm transition-all">Next</button>
+            <div className="flex justify-center items-center gap-4 pt-4 border-t border-gray-100 mt-8">
+              <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} className="px-6 py-2 text-sm font-bold text-black disabled:text-gray-300 disabled:bg-transparent bg-gray-100 hover:bg-gray-200 transition-all rounded-none">PREV</button>
+              <span className="text-sm font-mono text-black font-bold px-4 py-1.5">Page {page} {hasNextPage ? '...' : ''}</span>
+              <button onClick={() => setPage(p => p + 1)} disabled={!hasNextPage} className="px-6 py-2 text-sm font-bold text-black disabled:text-gray-300 disabled:bg-transparent bg-gray-100 hover:bg-gray-200 transition-all rounded-none">NEXT</button>
             </div>
           </>
         )}
@@ -739,57 +742,57 @@ function ProfileView({ playlist, onUpdateProgress, onRemove, onOpenModal }) {
   const currentList = playlist.filter(item => item.status === activeTab);
 
   return (
-    <div className="h-full overflow-y-auto px-6 lg:px-16 py-10 pb-24 bg-white custom-scrollbar">
+    <div className="h-full overflow-y-auto px-6 lg:px-16 py-10 pb-24 bg-white scrollbar-hide">
       <div className="max-w-5xl mx-auto">
-        <div className="flex items-center justify-between border-b border-gray-200 pb-8 mb-8">
+        <div className="flex items-center justify-between border-b border-gray-100 pb-8 mb-8">
           <div>
             <h1 className="text-3xl font-black text-black mb-2 font-mono">My Profile</h1>
-            <p className="text-gray-500 text-sm">
+            <p className="text-gray-400 text-sm">
               Tracked: {playlist.length} | Completed: {playlist.filter(i => i.status === LIST_STATUS.COMPLETED).length}
             </p>
           </div>
-          <div className="w-16 h-16 bg-[#0ea5e9] rounded-xl flex items-center justify-center text-2xl text-white font-bold font-mono shadow-md shadow-sky-200">
-            A
+          <div className="w-16 h-16 bg-black flex items-center justify-center text-2xl text-white font-bold font-mono rounded-none">
+            M
           </div>
         </div>
 
-        <div className="flex gap-6 mb-8">
+        <div className="flex gap-8 mb-10 border-b border-gray-50 pb-2">
           {tabs.map(tab => (
-            <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`pb-2 text-sm font-bold transition-colors relative ${activeTab === tab.id ? 'text-black' : 'text-gray-400 hover:text-gray-600'}`}>
+            <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`pb-2 text-sm font-bold transition-colors relative ${activeTab === tab.id ? 'text-black' : 'text-gray-400 hover:text-black'}`}>
               {tab.label}
-              <span className={`ml-2 text-[10px] px-2 py-0.5 rounded-full ${activeTab === tab.id ? 'bg-[#0ea5e9] text-white shadow-sm' : 'bg-gray-100 text-gray-500'}`}>{playlist.filter(i => i.status === tab.id).length}</span>
-              {activeTab === tab.id && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-[#0ea5e9] rounded-t-full"></div>}
+              <span className={`ml-2 text-[10px] px-2 py-0.5 rounded-none ${activeTab === tab.id ? 'bg-black text-white' : 'bg-gray-100 text-gray-500'}`}>{playlist.filter(i => i.status === tab.id).length}</span>
+              {activeTab === tab.id && <div className="absolute -bottom-2 left-0 w-full h-0.5 bg-black"></div>}
             </button>
           ))}
         </div>
 
         {currentList.length === 0 ? (
-          <div className="text-center py-24 bg-gray-50 rounded-xl border border-gray-200 border-dashed">
-            <p className="text-gray-400 text-sm font-mono">List is empty.</p>
+          <div className="text-center py-24 bg-gray-50 border border-gray-100 border-dashed text-gray-400 text-sm font-mono rounded-none">
+            List is empty.
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {currentList.map(anime => (
-              <div key={`profile-${anime.id}`} className="bg-white border border-gray-100 rounded-xl p-4 flex gap-4 relative group hover:border-sky-200 hover:shadow-md transition-all shadow-sm">
-                <img src={anime.imageUrl} alt="poster" className="w-[75px] h-[105px] object-cover rounded-lg cursor-pointer shrink-0 bg-gray-100" onClick={() => onOpenModal(anime)} />
+              <div key={`profile-${anime.id}`} className="bg-white p-4 flex gap-4 relative group transition-all border border-gray-50 hover:border-gray-200">
+                <img src={anime.imageUrl} alt="poster" className="w-[75px] h-[105px] object-cover rounded-none cursor-pointer shrink-0 bg-gray-100" onClick={() => onOpenModal(anime)} />
                 <div className="flex-1 flex flex-col min-w-0">
-                  <h3 className="font-bold text-sm text-gray-900 mb-1 truncate cursor-pointer group-hover:text-sky-600 transition-colors" onClick={() => onOpenModal(anime)}>{anime.title}</h3>
-                  <p className="text-[10px] text-gray-500 font-mono mb-4">Total: {anime.eps || '?'} eps</p>
+                  <h3 className="font-bold text-sm text-black mb-1 truncate cursor-pointer hover:underline" onClick={() => onOpenModal(anime)}>{anime.title}</h3>
+                  <p className="text-[10px] text-gray-400 font-mono mb-4">Total: {anime.eps || '?'} eps</p>
                   
                   <div className="mt-auto">
-                    <div className="flex justify-between items-center text-[10px] mb-2 font-bold text-gray-500 uppercase tracking-wider">
+                    <div className="flex justify-between items-center text-[10px] mb-2 font-bold text-gray-400 uppercase tracking-wider">
                       <span>Progress</span>
-                      <span className="text-gray-900">{anime.watched} / {anime.eps || '?'}</span>
+                      <span className="text-black">{anime.watched} / {anime.eps || '?'}</span>
                     </div>
-                    <div className="w-full bg-gray-100 rounded-full h-2 mb-3 overflow-hidden">
-                      <div className="bg-[#0ea5e9] h-full rounded-full transition-all" style={{ width: `${Math.min(100, (anime.watched / (anime.eps || 12)) * 100)}%` }}></div>
+                    <div className="w-full bg-gray-100 rounded-none h-1.5 mb-4 overflow-hidden">
+                      <div className="bg-black h-full transition-all" style={{ width: `${Math.min(100, (anime.watched / (anime.eps || 12)) * 100)}%` }}></div>
                     </div>
                     
                     <div className="flex justify-end gap-2 mt-2">
                       {activeTab === LIST_STATUS.WATCHING && (
-                        <button onClick={() => onUpdateProgress(anime.id, anime.watched + 1)} className="bg-sky-50 text-sky-600 border border-sky-100 px-3 py-1.5 rounded-lg text-[10px] font-bold hover:bg-sky-100 transition-colors">+1 Episode</button>
+                        <button onClick={() => onUpdateProgress(anime.id, anime.watched + 1)} className="bg-gray-100 text-black px-3 py-1.5 rounded-none text-[10px] font-bold hover:bg-black hover:text-white transition-colors">+1 Episode</button>
                       )}
-                      <button onClick={() => onRemove(anime.id)} className="text-red-400 hover:text-red-600 border border-transparent hover:border-red-100 hover:bg-red-50 px-3 py-1.5 rounded-lg text-[10px] font-bold transition-colors">Remove</button>
+                      <button onClick={() => onRemove(anime.id)} className="text-gray-400 hover:text-white hover:bg-red-500 px-3 py-1.5 rounded-none text-[10px] font-bold transition-colors">Remove</button>
                     </div>
                   </div>
                 </div>
@@ -804,7 +807,7 @@ function ProfileView({ playlist, onUpdateProgress, onRemove, onOpenModal }) {
 
 // 輔助 Icon 元件
 function CheckIcon() {
-  return <svg className="w-4 h-4 text-green-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7"></path></svg>;
+  return <svg className="w-4 h-4 text-black shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7"></path></svg>;
 }
 function StarIcon({className}) {
   return <svg className={className} fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"></path></svg>;
