@@ -1,14 +1,16 @@
 import React, { useState, useEffect, useMemo } from 'react';
 
-// 改成這樣
-const wattpadLogo = import.meta.env.BASE_URL + 'wattpad.png';
-const codeIcon = import.meta.env.BASE_URL + 'code.png';
-const anilistIcon = import.meta.env.BASE_URL + 'anilist.svg';
-const developerIcon = import.meta.env.BASE_URL + 'developer.png';
-const notionIcon = import.meta.env.BASE_URL + 'notion-icon.svg';
-const sparkleIcon = import.meta.env.BASE_URL + 'sparkle.png';
-const anilistLogoWhite = import.meta.env.BASE_URL + 'AniList_logo白.svg';
-const anilistLogo = import.meta.env.BASE_URL + 'AniList_logo.svg.png';
+
+import wattpadLogo from './assets/wattpad.png';
+import codeIcon from './assets/code.png';
+import anilistIcon from './assets/anilist.svg';
+import developerIcon from './assets/developer.png';
+import notionIcon from './assets/notion-icon.svg';
+import sparkleIcon from './assets/sparkle.png';
+import anilistLogoWhite from './assets/AniList_logo白.svg';
+import anilistLogo from './assets/AniList_logo.svg.png';
+
+// ...existing code...
 
 
 const LIST_STATUS = {
