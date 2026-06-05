@@ -5,7 +5,12 @@ export default {
     "./src/**/*.{js,ts,jsx,tsx}",
   ],
   theme: {
-    extend: {},
+    extend: {
+      fontFamily: {
+        // 請確認這裡完全依照這個格式
+        fascinate: ["Fascinate", "cursive"],
+      },
+    },
   },
   plugins: [],
 }
