@@ -1,13 +1,15 @@
 import React, { useState, useEffect, useMemo } from 'react';
 
-const wattpadLogo = '/wattpad.png';
-const codeIcon = '/code.png';
-const anilistIcon = '/anilist.svg';
-const developerIcon = '/developer.png';
-const notionIcon = '/notion-icon.svg';
-const sparkleIcon = '/sparkle.png';
-const anilistLogoWhite = '/AniList_logo白.svg';
-const anilistLogo = '/AniList_logo.svg.png';
+// 改成這樣
+const wattpadLogo = './wattpad.png';
+const codeIcon = './code.png';
+const anilistIcon = './anilist.svg';
+const developerIcon = './developer.png';
+const notionIcon = './notion-icon.svg';
+const sparkleIcon = './sparkle.png';
+const anilistLogoWhite = './AniList_logo白.svg';
+const anilistLogo = './AniList_logo.svg.png';
+
 
 const LIST_STATUS = {
   WATCHING: 'watching',    
