@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-
+ 
 import wattpadLogo from './assets/wattpad.png'; 
 import codeIcon from './assets/code.png'; 
 import anilistIcon from './assets/anilist.svg'; 
@@ -8,18 +8,20 @@ import notionIcon from './assets/notion-icon.svg';
 import sparkleIcon from './assets/sparkle.png'; 
 import anilistLogoWhite from './assets/AniList_logo white.svg'; 
 import anilistLogo from './assets/AniList_logo.svg.png';
-
+import keyframeIcon from './assets/keyframe.png';
+import userIcon from './assets/user.png';
+ 
 const LIST_STATUS = {
   WATCHING: 'watching',    
   PLANNED: 'planned',      
   COMPLETED: 'completed'   
 };
-
+ 
 const globalApiCache = new Map();
 let homeSeasonCache = null;
-
+ 
 const GENRE_MAP = {
-  '全部': '', 'Action': '動作', 'Adventure': '冒險', 'Comedy': '喜劇', 
+  'All': '', 'Action': '動作', 'Adventure': '冒險', 'Comedy': '喜劇', 
   'Drama': '劇情', 'Fantasy': '奇幻', 'Romance': '戀愛', 'Sci-Fi': '科幻', 
   'Slice of Life': '日常', 'Sports': '運動', 'Supernatural': '超自然', 
   'Mystery': '懸疑', 'Mecha': '機甲', 'Suspense': '懸疑', 'Ecchi': '微色情',
@@ -38,13 +40,13 @@ const GENRE_MAP = {
   'Crossdressing': '偽娘/男裝', 'Boys Love': 'BL', 'Girls Love': '百合',
   'Mahou Shoujo': '魔法少女', 'Idol': '偶像', 'CGDCT': '萌系', 'Thriller': '驚悚'
 };
-
-const UI_GENRES = ['全部', 'Action', 'Adventure', 'Comedy', 'Drama', 'Ecchi', 'Fantasy', 'Horror', 'Mahou Shoujo', 'Mecha', 'Music', 'Mystery', 'Psychological', 'Romance', 'Sci-Fi', 'Slice of Life', 'Sports', 'Supernatural', 'Thriller'];
-const UI_YEARS = ['全部', '即將上映', ...Array.from({length: 26}, (_, i) => (2026 - i).toString()), '2000以前'];
-const UI_SEASONS = ['全部', 'Winter', 'Spring', 'Summer', 'Fall'];
-
+ 
+const UI_GENRES = ['All', 'Action', 'Adventure', 'Comedy', 'Drama', 'Ecchi', 'Fantasy', 'Horror', 'Mahou Shoujo', 'Mecha', 'Music', 'Mystery', 'Psychological', 'Romance', 'Sci-Fi', 'Slice of Life', 'Sports', 'Supernatural', 'Thriller'];
+const UI_YEARS = ['All', ...Array.from({length: 26}, (_, i) => (2026 - i).toString()), '2000以前'];
+const UI_SEASONS = ['All', 'Winter', 'Spring', 'Summer', 'Fall'];
+ 
 const translateGenre = (enGenre) => GENRE_MAP[enGenre] || enGenre;
-
+ 
 const fetchAniList = async (query, variables = {}, retries = 3, delay = 1000) => {
   for (let i = 0; i < retries; i++) {
     try {
@@ -80,10 +82,10 @@ const fetchAniList = async (query, variables = {}, retries = 3, delay = 1000) =>
   }
   throw new Error("API Fetch Failed");
 };
-
+ 
 const formatAnilistAnime = (media) => {
   if (!media) return null;
-
+ 
   const isAdultContent = media.isAdult || (media.genres && media.genres.includes('Hentai'));
   let bDayIndex = 7; 
   
@@ -91,7 +93,7 @@ const formatAnilistAnime = (media) => {
     isAdultContent ||
     media.status === 'FINISHED' || 
     ['MUSIC', 'SPECIAL', 'TV_SHORT', 'OVA', 'MOVIE'].includes(media.format);
-
+ 
   if (forceToOther) {
     bDayIndex = 7;
   } else if (media.nextAiringEpisode?.airingAt) {
@@ -101,14 +103,14 @@ const formatAnilistAnime = (media) => {
   } else if (media.status === 'RELEASING') {
     bDayIndex = 7;
   }
-
+ 
   const formattedScore = media.meanScore ? (media.meanScore / 10).toFixed(1) : 'N/A';
   
   let mapStatus = 'Unknown';
   if (media.status === 'RELEASING') mapStatus = 'Currently Airing';
   else if (media.status === 'FINISHED') mapStatus = 'Finished Airing';
   else if (media.status === 'NOT_YET_RELEASED') mapStatus = 'Upcoming';
-
+ 
   const cleanSynopsis = media.description?.replace(/<[^>]*>?/gm, '') || '暫無劇情簡介。';
   
   let airDateStr = '';
@@ -116,17 +118,18 @@ const formatAnilistAnime = (media) => {
       airDateStr = `${media.startDate.year}-${String(media.startDate.month || 1).padStart(2,'0')}-${String(media.startDate.day || 1).padStart(2,'0')}`;
   }
   const seasonStr = media.season ? media.season.charAt(0).toUpperCase() + media.season.slice(1).toLowerCase() : '';
-
+ 
   let mappedFormat = media.format || 'TV';
   if (mappedFormat === 'TV_SHORT') mappedFormat = 'TV Short';
   else if (mappedFormat === 'SPECIAL') mappedFormat = 'Special';
   else if (mappedFormat === 'MUSIC') mappedFormat = 'Music';
-
+ 
   return {
     id: media.id,
     title: media.title.native || media.title.romaji || media.title.english,
     originalName: media.title.english || media.title.romaji,
-    imageUrl: media.coverImage?.large || media.coverImage?.medium || '',
+    // 【修改處】優先使用 extraLarge，若無則降級使用 large 或 medium
+    imageUrl: media.coverImage?.extraLarge || media.coverImage?.large || media.coverImage?.medium || '',
     score: formattedScore,
     users: media.popularity || 0,
     rank: '--', 
@@ -139,10 +142,12 @@ const formatAnilistAnime = (media) => {
     broadcastDayIndex: bDayIndex,
     synopsis: cleanSynopsis,
     airDateStr: airDateStr,
-    isAdultContent: isAdultContent
+    isAdultContent: isAdultContent,
+    nextAiringAt: media.nextAiringEpisode?.airingAt || null,
+    airingEpisode: media.nextAiringEpisode?.episode ? media.nextAiringEpisode.episode - 1 : null,
   };
 };
-
+ 
 export default function App() {
   const [theme, setTheme] = useState(() => {
     try {
@@ -153,8 +158,7 @@ export default function App() {
       return 'light';
     }
   });
-
-  // 新增：設定分頁標題與圖標
+ 
   useEffect(() => {
     document.title = 'Willy-List';
     let link = document.querySelector("link[rel~='icon']");
@@ -165,13 +169,13 @@ export default function App() {
     }
     link.href = './assets/wattpad.png';
   }, []);
-
+ 
   useEffect(() => {
     try {
       localStorage.setItem('app-theme', theme);
     } catch (e) {}
   }, [theme]);
-
+ 
   useEffect(() => {
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
     const handleChange = (e) => {
@@ -182,7 +186,7 @@ export default function App() {
       return () => mediaQuery.removeEventListener('change', handleChange);
     }
   }, []);
-
+ 
   const [currentPage, _setCurrentPage] = useState(() => {
     try {
       const hash = window.location.hash.replace('#', '');
@@ -199,7 +203,7 @@ export default function App() {
     } catch (e) {
     }
   };
-
+ 
   const [searchQuery, setSearchQuery] = useState('');
   const [allSeasonAnime, setAllSeasonAnime] = useState([]);
   const [currentSeasonInfo, setCurrentSeasonInfo] = useState({});
@@ -210,48 +214,48 @@ export default function App() {
     const saved = localStorage.getItem('animePlaylist');
     return saved ? JSON.parse(saved) : [];
   });
-
+ 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalData, setModalData] = useState(null);
   const [isModalLoading, setIsModalLoading] = useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-
+ 
   useEffect(() => {
     try {
       if (!window.location.hash) {
         window.history.replaceState({ page: 'home' }, '', '#home');
       }
     } catch (e) {}
-
+ 
     const handlePopState = (e) => {
       try {
         setIsModalOpen(false); 
         if (e.state && e.state.page) {
-          if (['home', 'anime', 'profile'].includes(e.state.page)) {
+          if (['home', 'anime', 'profile', 'calendar'].includes(e.state.page)) {
             _setCurrentPage(e.state.page);
             return;
           }
         }
         const hash = window.location.hash.replace('#', '');
-        if (['home', 'anime', 'profile'].includes(hash)) {
+        if (['home', 'anime', 'profile', 'calendar'].includes(hash)) {
           _setCurrentPage(hash);
         }
       } catch (error) {}
     };
-
+ 
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
-
+ 
   useEffect(() => {
     localStorage.setItem('animePlaylist', JSON.stringify(myPlaylist));
   }, [myPlaylist]);
-
+ 
   const showToast = (message) => {
     setToast(message);
     setTimeout(() => setToast(null), 3000);
   };
-
+ 
   const handleAddToList = (anime, status = LIST_STATUS.PLANNED) => {
     const existingIndex = myPlaylist.findIndex(item => item.id === anime.id);
     const statusText = status === LIST_STATUS.PLANNED ? 'Planning' : status === LIST_STATUS.WATCHING ? 'Watching' : 'Completed';
@@ -265,16 +269,16 @@ export default function App() {
     }
     setIsDropdownOpen(false);
   };
-
+ 
   const handleChangeStatus = (animeId, newStatus) => {
     setMyPlaylist(prevList => prevList.map(anime => anime.id === animeId ? { ...anime, status: newStatus } : anime));
   };
-
+ 
   const handleRemoveFromList = (animeId) => {
     setMyPlaylist(prevList => prevList.filter(anime => anime.id !== animeId));
     showToast('已從清單中移除。');
   };
-
+ 
   const handleUpdateProgress = (animeId, episodeNumber) => {
     setMyPlaylist(prevList => 
       prevList.map(anime => {
@@ -289,7 +293,7 @@ export default function App() {
       })
     );
   };
-
+ 
   const handleOpenModal = async (baseAnime) => {
     setIsModalOpen(true);
     setIsModalLoading(true);
@@ -299,6 +303,7 @@ export default function App() {
         query($id: Int) {
           Media(id: $id, type: ANIME) {
             id 
+            coverImage { extraLarge large medium }
             trailer { id site thumbnail }
             characters(sort: ROLE, perPage: 8) {
               edges { role node { id name { full } image { large } } voiceActors(language: JAPANESE) { name { full } } }
@@ -307,6 +312,7 @@ export default function App() {
         }
       `;
       const charResData = await fetchAniList(query, { id: baseAnime.id });
+      const freshImageUrl = charResData.Media?.coverImage?.extraLarge || charResData.Media?.coverImage?.large || charResData.Media?.coverImage?.medium || baseAnime.imageUrl;
       
       const formattedCharacters = (charResData.Media?.characters?.edges || []).map(c => ({
         id: c.node.id,
@@ -314,7 +320,7 @@ export default function App() {
         image: c.node.image?.large,
         actorName: c.voiceActors && c.voiceActors.length > 0 ? c.voiceActors[0].name.full : '未知'
       }));
-
+ 
       const trailerData = charResData.Media?.characters?.trailer || charResData.Media?.trailer;
       let trailerUrl = null;
       if (trailerData) {
@@ -324,15 +330,16 @@ export default function App() {
           trailerUrl = `https://www.dailymotion.com/embed/video/${trailerData.id}`;
         }
       }
-
+ 
       const fullData = {
         ...baseAnime,
+        imageUrl: freshImageUrl,
         eps: baseAnime.eps || 12,
         characters: formattedCharacters,
         trailer: trailerUrl,
         trailerRaw: trailerData
       };
-
+ 
       setModalData(fullData);
       setMyPlaylist(prev => prev.map(item => item.id === baseAnime.id ? { ...item, eps: fullData.eps } : item));
     } catch (error) {
@@ -341,13 +348,13 @@ export default function App() {
       setIsModalLoading(false);
     }
   };
-
+ 
   useEffect(() => {
     let isMounted = true;
     
     const fetchAllAiringData = async () => {
       setIsHomeLoading(true);
-
+ 
       const d = new Date();
       const year = d.getFullYear();
       const month = d.getMonth() + 1;
@@ -358,11 +365,11 @@ export default function App() {
       else if (month >= 4 && month <= 6) { currentSeason = 'SPRING'; currentYear = year; prevSeason = 'WINTER'; prevYear = year; } 
       else if (month >= 7 && month <= 9) { currentSeason = 'SUMMER'; currentYear = year; prevSeason = 'SPRING'; prevYear = year; } 
       else { currentSeason = 'FALL'; currentYear = year; prevSeason = 'SUMMER'; prevYear = year; }
-
+ 
       if (isMounted) {
         setCurrentSeasonInfo({ currentSeason, currentYear, prevSeason, prevYear });
       }
-
+ 
       if (homeSeasonCache) {
         if (isMounted) {
           setAllSeasonAnime(homeSeasonCache);
@@ -370,22 +377,23 @@ export default function App() {
         }
         return;
       }
-
+ 
       try {
         let allFetched = [];
-
+ 
         const fetchSeasonPage = async (season, year, isCurrentSeason) => {
           let hasNextPage = true;
           let page = 1;
           const maxPages = isCurrentSeason ? 5 : 2; 
-
+ 
           while (hasNextPage && page <= maxPages) {
+            // 【修改處】在 coverImage 後加上 extraLarge
             const query = `
               query($season: MediaSeason, $seasonYear: Int, $page: Int) {
                 Page(page: $page, perPage: 50) {
                   pageInfo { hasNextPage }
                   media(season: $season, seasonYear: $seasonYear, type: ANIME, countryOfOrigin: "JP", sort: POPULARITY_DESC) {
-                    id title { romaji english native } coverImage { large } meanScore popularity episodes status format genres season seasonYear description nextAiringEpisode { airingAt } startDate { year month day } isAdult
+                    id title { romaji english native } coverImage { extraLarge large } meanScore popularity episodes status format genres season seasonYear description nextAiringEpisode { airingAt episode } startDate { year month day } isAdult
                   }
                 }
               }
@@ -406,10 +414,10 @@ export default function App() {
             page++;
           }
         };
-
+ 
         await fetchSeasonPage(currentSeason, currentYear, true);
         await fetchSeasonPage(prevSeason, prevYear, false);
-
+ 
         if (isMounted) {
           const uniqueMap = new Map();
           allFetched.forEach(anime => {
@@ -433,7 +441,7 @@ export default function App() {
     fetchAllAiringData();
     return () => { isMounted = false; };
   }, []);
-
+ 
   return (
     <div className={`fixed inset-0 w-full h-full font-sans flex flex-col overflow-hidden border-0 outline-none m-0 p-0 transition-colors duration-300 ${theme === 'dark' ? 'bg-[#0a0a0a] text-gray-100 selection:bg-gray-700' : 'bg-white text-gray-900 selection:bg-gray-200'}`}>
       
@@ -443,8 +451,7 @@ export default function App() {
           {toast}
         </div>
       )}
-
-      {/* 修改 Nav 讓 Logo 精準對齊下方的 Willy List 文字 (左側區域為 35%) */}
+ 
       <nav className={`h-24 shrink-0 w-full flex items-center justify-between z-40 transition-colors duration-300 ${theme === 'dark' ? 'bg-[#0a0a0a]' : 'bg-white'}`}>
         <div className="w-full lg:w-[35%] flex items-center px-8 lg:pl-8 lg:pr-8">
           <div className="w-full max-w-[480px] ml-auto flex items-center">
@@ -456,16 +463,19 @@ export default function App() {
         
         <div className="flex-1 flex justify-end items-center px-8 md:pr-12 lg:pr-24 min-[1920px]:pr-[280px]">
           <div className={`hidden md:flex items-center gap-8 lg:gap-12 font-bold text-sm ${theme === 'dark' ? 'text-white' : 'text-black'}`}>
+            <button onClick={() => setCurrentPage('calendar')} className={`flex items-center transition-colors border-none bg-transparent hover:opacity-70 ${theme === 'dark' ? 'text-white' : 'text-black'}`}>
+              <svg className="w-3.5 h-3.5 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+              Calendar
+            </button>
             <button onClick={() => setCurrentPage('anime')} className={`flex items-center transition-colors border-none bg-transparent hover:opacity-70 ${theme === 'dark' ? 'text-white' : 'text-black'}`}>
-              <svg className="w-3.5 h-3.5 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M10 6H18V14M18 6L6 18"></path></svg>
+              <img src={keyframeIcon} alt="anime" className={`w-3.5 h-3.5 mr-1.5 object-contain transition-all duration-300 ${theme === 'dark' ? 'invert' : ''}`} />
               Anime
             </button>
             <button onClick={() => setCurrentPage('profile')} className={`flex items-center transition-colors border-none bg-transparent hover:opacity-70 ${theme === 'dark' ? 'text-white' : 'text-black'}`}>
-              <svg className="w-3.5 h-3.5 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M10 6H18V14M18 6L6 18"></path></svg>
+              <img src={userIcon} alt="profile" className={`w-3 h-3 mr-1.5 object-contain transition-all duration-300 ${theme === 'dark' ? 'invert' : ''}`} />
               My Profile
             </button>
-
-            {/* Dark / Light Toggle Slider */}
+ 
             <button 
               onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
               className={`relative w-10 h-5 flex items-center rounded-full p-0.5 cursor-pointer transition-colors duration-300 border-none ml-2 ${theme === 'dark' ? 'bg-[#222]' : 'bg-gray-200'}`}
@@ -499,10 +509,10 @@ export default function App() {
               style={{ borderBottomWidth: '1px' }}
             />
           </div>
-
+ 
         </div>
       </nav>
-
+ 
       <main className={`flex-1 overflow-hidden relative transition-colors duration-300 ${theme === 'dark' ? 'bg-[#0a0a0a]' : 'bg-white'}`}>
         {currentPage === 'home' && (
           <HomeView 
@@ -513,6 +523,7 @@ export default function App() {
             isLoading={isHomeLoading}
             setCurrentPage={setCurrentPage}
             theme={theme}
+            myPlaylist={myPlaylist}
           />
         )}
         
@@ -521,9 +532,10 @@ export default function App() {
             searchQuery={searchQuery}
             onAdd={handleAddToList} onOpenModal={handleOpenModal}
             theme={theme}
+            myPlaylist={myPlaylist}
           />
         )}
-
+ 
         {currentPage === 'profile' && (
           <ProfileView 
             playlist={myPlaylist} onUpdateProgress={handleUpdateProgress}
@@ -531,15 +543,22 @@ export default function App() {
             theme={theme}
           />
         )}
+ 
+        {currentPage === 'calendar' && (
+          <CalendarView
+            myPlaylist={myPlaylist}
+            onOpenModal={handleOpenModal}
+            theme={theme}
+          />
+        )}
       </main>
-
-      {/* Modal - 加寬為 max-w-5xl */}
+ 
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
           <div className={`absolute inset-0 backdrop-blur-sm cursor-pointer transition-colors duration-300 ${theme === 'dark' ? 'bg-black/80' : 'bg-black/60'}`} onClick={() => setIsModalOpen(false)}></div>
           <div className={`relative w-full max-w-5xl max-h-[90vh] overflow-y-auto rounded-none shadow-2xl flex flex-col md:flex-row transition-colors duration-300 ${theme === 'dark' ? 'bg-[#141414]' : 'bg-white'}`}>
             <button onClick={() => setIsModalOpen(false)} className={`absolute top-4 right-4 z-10 w-8 h-8 rounded-none flex items-center justify-center transition-colors border-none ${theme === 'dark' ? 'bg-[#222] text-gray-500 hover:bg-white hover:text-black' : 'bg-gray-100 text-gray-500 hover:bg-black hover:text-white'}`}>✕</button>
-
+ 
             {isModalLoading ? (
               <div className={`w-full p-32 text-center font-mono text-sm flex flex-col items-center ${theme === 'dark' ? 'text-gray-500' : 'text-gray-400'}`}>
                 <svg className={`animate-spin h-8 w-8 mb-4 ${theme === 'dark' ? 'text-white' : 'text-black'}`} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
@@ -603,7 +622,7 @@ export default function App() {
                               <svg className={`w-5 h-5 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M19 9l-7 7-7-7"></path></svg>
                             </button>
                           </div>
-
+ 
                           {isDropdownOpen && (
                             <div className={`absolute top-[48px] left-0 w-full border shadow-xl z-50 flex flex-col rounded-[4px] transition-colors duration-300 ${theme === 'dark' ? 'bg-[#1a1a1a] border-[#333]' : 'bg-white border-gray-200'}`}>
                               <button 
@@ -644,7 +663,7 @@ export default function App() {
                     <div className={`flex justify-between pb-2 border-b ${theme === 'dark' ? 'border-[#333]' : 'border-gray-200'}`}><span>放送日期</span><span className={theme === 'dark' ? 'text-white' : 'text-black'}>{modalData.airDateStr}</span></div>
                   </div>
                 </div>
-
+ 
                 <div className={`w-full md:w-[70%] p-8 md:p-10 overflow-y-auto max-h-[90vh] transition-colors duration-300 ${theme === 'dark' ? 'bg-[#141414]' : 'bg-white'}`}>
                   <div className="mb-8">
                     <div className="flex items-center gap-2 mb-2">
@@ -665,18 +684,15 @@ export default function App() {
                     <h3 className={`text-sm font-bold mb-2 uppercase tracking-wider ${theme === 'dark' ? 'text-white' : 'text-black'}`}>Synopsis</h3>
                     <p className={`text-sm leading-relaxed whitespace-pre-wrap ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>{modalData.synopsis}</p>
                   </div>
-
+ 
                   {modalData.characters && modalData.characters.length > 0 && (
                     <div className={`mt-8 border-t pt-8 ${theme === 'dark' ? 'border-[#333]' : 'border-gray-100'}`}>
                       <h3 className={`text-sm font-bold mb-4 uppercase tracking-wider ${theme === 'dark' ? 'text-white' : 'text-black'}`}>Characters</h3>
-                      {/* 修改為 grid-cols-3，並縮小整體區塊 padding */}
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                         {modalData.characters.map(char => (
                           <div key={char.id} className={`p-2 flex items-center gap-2 rounded-none transition-colors border-none ${theme === 'dark' ? 'bg-[#1a1a1a]' : 'bg-gray-50'}`}>
-                            {/* 縮小頭像為 w-8 h-8 */}
                             {char.image ? <img src={char.image} alt={char.name} className="w-8 h-8 rounded-none object-cover shrink-0" /> : <div className={`w-8 h-8 rounded-none shrink-0 ${theme === 'dark' ? 'bg-gray-800' : 'bg-gray-200'}`}></div>}
                             <div className="overflow-hidden">
-                              {/* 縮小文字 */}
                               <p className={`text-xs font-bold truncate ${theme === 'dark' ? 'text-gray-100' : 'text-gray-900'}`}>{char.name}</p>
                               <p className="text-[10px] text-gray-500 truncate">CV: {char.actorName}</p>
                             </div>
@@ -685,8 +701,7 @@ export default function App() {
                       </div>
                     </div>
                   )}
-
-                  {/* Trailer 區塊 */}
+ 
                   {modalData.trailer && (
                     <div className={`mt-8 border-t pt-8 ${theme === 'dark' ? 'border-[#333]' : 'border-gray-100'}`}>
                       <div className="flex justify-between items-center mb-4">
@@ -737,11 +752,11 @@ export default function App() {
           </div>
         </div>
       )}
-
+ 
       {currentPage === 'home' && !isModalOpen && (
         <FooterMarquee playlist={myPlaylist} theme={theme} />
       )}
-
+ 
       <style dangerouslySetInnerHTML={{__html: `
         @import url('https://fonts.googleapis.com/css2?family=Fascinate&display=swap');
         .fascinate-regular {
@@ -764,14 +779,14 @@ export default function App() {
     </div>
   );
 }
-
+ 
 function FooterMarquee({ playlist, theme }) {
   const watchingList = playlist.filter(item => item.status === LIST_STATUS.WATCHING);
   const repeatCount = watchingList.length > 0 ? Math.max(4, Math.ceil(20 / watchingList.length)) : 20;
-
+ 
   return (
     <div className={`fixed bottom-0 left-0 w-full h-10 flex items-center overflow-hidden z-50 pointer-events-none border-none transition-colors duration-300 ${theme === 'dark' ? 'bg-[#0a0a0a]' : 'bg-white'}`}>
-      <div className="flex whitespace-nowrap animate-[scroll_240s_linear_infinite] text-[11px] font-mono text-gray-500 font-bold items-center pointer-events-auto">
+      <div className="flex whitespace-nowrap animate-[scroll_300s_linear_infinite] text-[11px] font-mono text-gray-500 font-bold items-center pointer-events-auto">
         {[...Array(repeatCount)].map((_, i) => (
           <React.Fragment key={i}>
             {anilistLogoWhite && <img src={theme === 'dark' ? anilistLogoWhite : anilistLogo} alt="AniList Logo" className="mx-6 w-[18px] h-[18px] object-cover rounded-[4px] shrink-0 transition-all duration-300" />}
@@ -791,13 +806,188 @@ function FooterMarquee({ playlist, theme }) {
     </div>
   );
 }
+ 
 
-function HomeView({ allSeasonAnime, currentSeasonInfo, onAdd, onOpenModal, isLoading, setCurrentPage, theme }) {
+function CalendarView({ myPlaylist, onOpenModal, theme }) {
+  const today = new Date();
+  const [viewYear, setViewYear] = useState(today.getFullYear());
+  const [viewMonth, setViewMonth] = useState(today.getMonth());
+
+  const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+
+  const prevMonth = () => {
+    if (viewMonth === 0) { setViewMonth(11); setViewYear(y => y - 1); }
+    else setViewMonth(m => m - 1);
+  };
+  const nextMonth = () => {
+    if (viewMonth === 11) { setViewMonth(0); setViewYear(y => y + 1); }
+    else setViewMonth(m => m + 1);
+  };
+
+  const isToday = (d) => d && viewYear === today.getFullYear() && viewMonth === today.getMonth() && d === today.getDate();
+
+  const tsToLocalDate = (ts) => {
+    const d = new Date(ts * 1000);
+    return { year: d.getFullYear(), month: d.getMonth(), day: d.getDate() };
+  };
+
+  const getAiringDatesInMonth = (anime) => {
+    const results = [];
+    if (anime.nextAiringAt) {
+      const anchorEp = (anime.airingEpisode || 0) + 1;
+      const anchorTs = anime.nextAiringAt;
+      const WEEK = 7 * 24 * 3600;
+      const monthStart = new Date(viewYear, viewMonth, 1).getTime() / 1000;
+      const monthEnd   = new Date(viewYear, viewMonth + 1, 0, 23, 59, 59).getTime() / 1000;
+      const weeksBack  = Math.ceil((anchorTs - monthStart) / WEEK) + 1;
+      const weeksAhead = Math.ceil((monthEnd - anchorTs) / WEEK) + 1;
+      for (let w = -weeksBack; w <= weeksAhead; w++) {
+        const ts = anchorTs + w * WEEK;
+        if (ts < monthStart || ts > monthEnd) continue;
+        const epNum = anchorEp + w;
+        if (epNum < 1) continue;
+        if (anime.eps && epNum > anime.eps) continue;
+        const d = tsToLocalDate(ts);
+        if (d.year === viewYear && d.month === viewMonth) {
+          results.push({ day: d.day, epNum, airingTs: ts });
+        }
+      }
+    } else if (anime.status === 'Currently Airing' && anime.broadcastDayIndex >= 0 && anime.broadcastDayIndex <= 6) {
+      const lastDay = new Date(viewYear, viewMonth + 1, 0).getDate();
+      for (let d = 1; d <= lastDay; d++) {
+        const jsDay = new Date(viewYear, viewMonth, d).getDay();
+        const idx = jsDay === 0 ? 6 : jsDay - 1;
+        if (idx === anime.broadcastDayIndex) {
+          results.push({ day: d, epNum: null, airingTs: null });
+        }
+      }
+    }
+    return results;
+  };
+
+  const watchingList = myPlaylist.filter(a => a.status === LIST_STATUS.WATCHING);
+
+  const dayMap = useMemo(() => {
+    const map = {};
+    watchingList.forEach(anime => {
+      getAiringDatesInMonth(anime).forEach(({ day, epNum, airingTs }) => {
+        if (!map[day]) map[day] = [];
+        map[day].push({ anime, epNum, airingTs });
+      });
+    });
+    Object.keys(map).forEach(day => {
+      map[day].sort((a, b) => {
+        if (a.airingTs == null && b.airingTs == null) return 0;
+        if (a.airingTs == null) return 1;
+        if (b.airingTs == null) return -1;
+        return a.airingTs - b.airingTs;
+      });
+    });
+    return map;
+  }, [watchingList, viewYear, viewMonth]);
+
+  const firstDay = new Date(viewYear, viewMonth, 1);
+  const startOffset = firstDay.getDay() === 0 ? 6 : firstDay.getDay() - 1;
+  const totalDays = new Date(viewYear, viewMonth + 1, 0).getDate();
+  const cells = [];
+  for (let i = 0; i < startOffset; i++) cells.push(null);
+  for (let d = 1; d <= totalDays; d++) cells.push(d);
+  while (cells.length % 7 !== 0) cells.push(null);
+  const weeks = [];
+  for (let i = 0; i < cells.length; i += 7) weeks.push(cells.slice(i, i + 7));
+
+  return (
+    <div className={`h-full overflow-y-auto px-6 lg:px-16 py-10 pb-24 scrollbar-hide transition-colors duration-300 ${theme === 'dark' ? 'bg-[#0a0a0a] text-white' : 'bg-white text-black'}`}>
+      <div className="max-w-[1600px] mx-auto">
+
+        {/* Header */}
+        <div className="flex items-center justify-between mb-8">
+          <h1 className={`text-3xl fascinate-regular transition-colors duration-300 ${theme === 'dark' ? 'text-white' : 'text-black'}`}>
+            {MONTH_NAMES[viewMonth]} {viewYear}
+          </h1>
+          <div className="flex items-center gap-3">
+            <button onClick={prevMonth} className={`w-8 h-8 flex items-center justify-center border-none bg-transparent transition-colors ${theme === 'dark' ? 'text-gray-400 hover:text-white' : 'text-gray-400 hover:text-black'}`}>
+              <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7"/></svg>
+            </button>
+            <button
+              onClick={() => { setViewYear(today.getFullYear()); setViewMonth(today.getMonth()); }}
+              className={`text-[11px] font-mono px-3 py-1 border transition-colors ${theme === 'dark' ? 'border-[#333] text-gray-400 hover:text-white hover:border-white' : 'border-gray-200 text-gray-400 hover:text-black hover:border-black'}`}
+            >
+              Today
+            </button>
+            <button onClick={nextMonth} className={`w-8 h-8 flex items-center justify-center border-none bg-transparent transition-colors ${theme === 'dark' ? 'text-gray-400 hover:text-white' : 'text-gray-400 hover:text-black'}`}>
+              <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7"/></svg>
+            </button>
+          </div>
+        </div>
+
+        {/* Day labels */}
+        <div className="grid grid-cols-7 mb-2">
+          {DAY_LABELS.map(label => (
+            <div key={label} className={`text-[10px] font-mono text-center pb-3 ${theme === 'dark' ? 'text-gray-600' : 'text-gray-400'}`}>
+              {label}
+            </div>
+          ))}
+        </div>
+
+        {/* Calendar grid */}
+        <div className={`border-t ${theme === 'dark' ? 'border-[#1e1e1e]' : 'border-gray-100'}`}>
+          {weeks.map((week, wi) => (
+            <div key={wi} className={`grid grid-cols-7 border-b ${theme === 'dark' ? 'border-[#1e1e1e]' : 'border-gray-100'}`}>
+              {week.map((day, di) => {
+                const entries = day ? (dayMap[day] || []) : [];
+                const todayCell = isToday(day);
+                return (
+                  <div
+                    key={di}
+                    className={`min-h-[140px] lg:min-h-[200px] p-2 border-r last:border-r-0 transition-colors ${theme === 'dark' ? 'border-[#1e1e1e]' : 'border-gray-100'} ${!day ? (theme === 'dark' ? 'bg-[#0a0a0a]' : 'bg-gray-50/40') : ''}`}
+                  >
+                    {day && (
+                      <>
+                        <div className="flex justify-end mb-1.5">
+                          <span className={`text-[11px] font-mono w-6 h-6 flex items-center justify-center rounded-full ${todayCell ? (theme === 'dark' ? 'bg-[#dbe6ff] text-black font-bold' : 'bg-[#dfe9ff] text-black font-bold') : (theme === 'dark' ? 'text-gray-600' : 'text-gray-400')}`}>
+                            {day}
+                          </span>
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          {entries.map(({ anime, epNum }) => (
+                            <button
+                              key={anime.id}
+                              onClick={() => onOpenModal(anime)}
+                              className={`w-full text-left text-[9px] font-medium px-1.5 py-1 leading-tight truncate transition-colors border-none rounded-none ${theme === 'dark' ? 'bg-[#1a1a1a] text-gray-300 hover:bg-white hover:text-black' : 'bg-gray-100 text-gray-700 hover:bg-black hover:text-white'}`}
+                              title={`${anime.title}${epNum ? ` — Ep ${epNum}` : ''}`}
+                            >
+                              {epNum && <span className="mr-1 opacity-50">Ep{epNum}</span>}
+                              {anime.title}
+                            </button>
+                          ))}
+                        </div>
+                      </>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          ))}
+        </div>
+
+        {watchingList.length === 0 && (
+          <div className={`text-center pt-16 text-[12px] font-mono ${theme === 'dark' ? 'text-gray-600' : 'text-gray-400'}`}>
+            No anime in your Watching list yet.
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+ 
+function HomeView({ allSeasonAnime, currentSeasonInfo, onAdd, onOpenModal, isLoading, setCurrentPage, theme, myPlaylist }) {
   const currentJS = new Date().getDay(); 
   const currentDayIndex = currentJS === 0 ? 6 : currentJS - 1; 
   const [activeTab, setActiveTab] = useState(currentDayIndex);
   
-  /* 精準判斷 1920px (將您的筆電 1800px 歸類在 3 欄，大外接螢幕 2560px 歸類在 4 欄) */
   const [itemsPerRow, setItemsPerRow] = useState(() => typeof window !== 'undefined' && window.innerWidth >= 1920 ? 4 : 3);
   
   useEffect(() => {
@@ -805,11 +995,11 @@ function HomeView({ allSeasonAnime, currentSeasonInfo, onAdd, onOpenModal, isLoa
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
-
+ 
   const schedule = useMemo(() => {
-    const daysZh = ['一', '二', '三', '四', '五', '六', '日'];
-    const map = Array.from({ length: 7 }, (_, i) => ({ id: i, name: `周${daysZh[i]}`, items: [] }));
-    const other = { id: 7, name: '其他', items: [] }; 
+    const daysEn = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    const map = Array.from({ length: 7 }, (_, i) => ({ id: i, name: daysEn[i], items: [] }));
+    const other = { id: 7, name: 'Other', items: [] }; 
     
     allSeasonAnime.forEach(anime => {
         if (anime.broadcastDayIndex !== null && anime.broadcastDayIndex >= 0 && anime.broadcastDayIndex <= 6) {
@@ -821,9 +1011,9 @@ function HomeView({ allSeasonAnime, currentSeasonInfo, onAdd, onOpenModal, isLoa
     if (other.items.length > 0) map.push(other);
     return map;
   }, [allSeasonAnime]);
-
+ 
   const currentList = schedule.find(s => s.id === activeTab)?.items || [];
-
+ 
   const rows = useMemo(() => {
     const result = [];
     for (let i = 0; i < currentList.length; i += itemsPerRow) {
@@ -831,11 +1021,10 @@ function HomeView({ allSeasonAnime, currentSeasonInfo, onAdd, onOpenModal, isLoa
     }
     return result;
   }, [currentList, itemsPerRow]);
-
+ 
   return (
     <div className={`flex flex-col lg:flex-row h-full overflow-hidden relative pb-8 items-start transition-colors duration-300 ${theme === 'dark' ? 'bg-[#0a0a0a]' : 'bg-white'}`}>
       
-      {/* 天花板 padding：小於 1920px (筆電) 是 12vh，大螢幕 1920px 以上恢復 18vh */}
       <div className="w-full lg:w-[35%] h-full flex flex-col px-8 lg:pl-8 lg:pr-8 shrink-0 overflow-y-auto pt-[12vh] min-[1920px]:pt-[18vh]">
         <div className="w-full max-w-[480px] ml-auto flex flex-col h-full pb-[10vh]">
           
@@ -851,7 +1040,7 @@ function HomeView({ allSeasonAnime, currentSeasonInfo, onAdd, onOpenModal, isLoa
             Willy List is an unofficial & open-source platform for the 
             <br/><strong>"most active online anime community and database"</strong>.
           </p>
-
+ 
           <div className={`grid grid-cols-1 md:grid-cols-2 gap-y-8 gap-x-6 text-[15px] font-medium transition-colors duration-300 ${theme === 'dark' ? 'text-white' : 'text-black'}`}>
             <div className="flex items-center gap-3">
               {codeIcon && <img src={codeIcon} alt="API" className={`w-5 h-5 object-contain transition-all duration-300 ${theme === 'dark' ? 'invert' : ''}`} />}
@@ -870,14 +1059,12 @@ function HomeView({ allSeasonAnime, currentSeasonInfo, onAdd, onOpenModal, isLoa
               Willy-Anime
             </a>
           </div>
-
-          {/* 移除了原本的 Learn more 和 Get started 按鈕 */}
+ 
         </div>
       </div>
-
+ 
       <div className="w-full lg:w-[65%] h-full flex flex-col relative overflow-hidden">
         
-        {/* 天花板 padding：小於 1920px (筆電) 是 12vh，大螢幕 1920px 以上恢復 18vh */}
         <div className={`shrink-0 w-full pt-[12vh] min-[1920px]:pt-[18vh] pb-6 px-8 flex flex-col items-start gap-6 z-10 transition-colors duration-300 ${theme === 'dark' ? 'bg-[#0a0a0a]' : 'bg-white'}`}>
           <div className={`flex items-center gap-3 text-sm font-mono w-fit ${theme === 'dark' ? 'text-white' : 'text-black'}`}>
             <span className="font-black tracking-wide">GET</span>
@@ -885,22 +1072,22 @@ function HomeView({ allSeasonAnime, currentSeasonInfo, onAdd, onOpenModal, isLoa
               https://anilist.co/api/v2/oauth/pin
             </span>
           </div>
-
+ 
           {!isLoading && allSeasonAnime.length > 0 && (
             <div className="flex gap-8 overflow-x-auto scrollbar-hide w-full justify-start mt-2">
               {schedule.map((day) => (
                 <span 
                   key={day.id} 
                   onClick={() => setActiveTab(day.id)} 
-                  className={`text-[15px] cursor-pointer transition-colors whitespace-nowrap font-bold uppercase tracking-wider ${activeTab === day.id ? (theme === 'dark' ? 'text-white border-b-[3px] border-white pb-1.5' : 'text-black border-b-[3px] border-black pb-1.5') : (theme === 'dark' ? 'text-gray-400 hover:text-white pb-1.5' : 'text-gray-400 hover:text-black pb-1.5')}`}
+                  className={`text-[12px] cursor-pointer transition-colors whitespace-nowrap font-normal tracking-wide ${activeTab === day.id ? (theme === 'dark' ? 'text-white border-b-[2px] border-white pb-1.5' : 'text-black border-b-[2px] border-black pb-1.5') : (theme === 'dark' ? 'text-gray-400 hover:text-white pb-1.5' : 'text-gray-400 hover:text-black pb-1.5')}`}
                 >
-                  {day.name.replace('周', '')} {day.id === currentDayIndex && <span className="text-[10px] opacity-70 ml-1">(今日)</span>}
+                  {day.name} {day.id === currentDayIndex && <span className="text-[10px] opacity-50 ml-1">(today)</span>}
                 </span>
               ))}
             </div>
           )}
         </div>
-
+ 
         <div className="flex-1 overflow-y-auto overflow-x-auto scrollbar-hide px-8 pb-24">
           {isLoading ? (
             <div className={`w-full flex flex-col items-center justify-center space-y-4 py-20 ${theme === 'dark' ? 'text-gray-500' : 'text-gray-400'}`}>
@@ -915,13 +1102,13 @@ function HomeView({ allSeasonAnime, currentSeasonInfo, onAdd, onOpenModal, isLoa
                   style={{ marginLeft: `${rowIndex * 1.25}rem` }}
                 >
                   {row.map((anime) => (
-                    // 卡片寬度在筆電加大到 320px，並且加上 flex 讓它強制等高拉伸
                     <div key={anime.id} className="w-[320px] min-[1920px]:w-[360px] shrink-0 flex">
                       <AnimeCardHome 
                         anime={anime} 
                         onAdd={() => onAdd(anime, LIST_STATUS.PLANNED)} 
                         onClick={() => onOpenModal(anime)} 
                         theme={theme}
+                        myPlaylist={myPlaylist}
                       />
                     </div>
                   ))}
@@ -936,16 +1123,16 @@ function HomeView({ allSeasonAnime, currentSeasonInfo, onAdd, onOpenModal, isLoa
     </div>
   );
 }
-
-function AnimeCardHome({ anime, onClick, onAdd, theme }) {
+ 
+function AnimeCardHome({ anime, onClick, onAdd, theme, myPlaylist }) {
   const displayDate = anime.season && anime.year 
     ? `${anime.season} ${anime.year}` 
     : (anime.year ? anime.year : (anime.airDateStr ? anime.airDateStr.split('-')[0] : ''));
-
+ 
+  const isAlreadyInList = myPlaylist.some(item => item.id === anime.id);
+ 
   return (
-    // 這裡加上 h-full 確保同一行的卡片高度都能等比例對齊，不會因為標題字數不同而大小不一
     <div className={`flex gap-5 p-3.5 cursor-pointer relative group transition-all hover:shadow-md rounded-2xl border w-full h-full ${theme === 'dark' ? 'bg-[#141414] border-transparent hover:border-[#333]' : 'bg-white border-transparent hover:border-gray-100'}`} onClick={onClick}>
-      {/* 海報大小切換：小於 1920px 給筆電較小尺寸，外接大螢幕 1920px 給大尺寸 */}
       <img src={anime.imageUrl} alt={anime.title} className={`object-cover rounded-[12px] shrink-0 shadow-sm transition-transform group-hover:scale-[1.02] w-[85px] h-[125px] min-[1920px]:w-[105px] min-[1920px]:h-[155px] ${theme === 'dark' ? 'bg-[#222]' : 'bg-gray-100'}`} />
       <div className="flex flex-col flex-1 py-1 min-w-0">
         
@@ -958,7 +1145,6 @@ function AnimeCardHome({ anime, onClick, onAdd, theme }) {
           {anime.eps && <span>• {anime.eps} eps</span>}
         </div>
         
-        {/* 標題大小切換 */}
         <h3 className={`font-bold leading-tight line-clamp-2 pr-2 mb-2.5 text-[14px] min-[1920px]:text-[16px] ${theme === 'dark' ? 'text-white' : 'text-black'}`}>
           {anime.title}
         </h3>
@@ -981,21 +1167,28 @@ function AnimeCardHome({ anime, onClick, onAdd, theme }) {
           ))}
         </div>
       </div>
-
-      <button onClick={(e) => { e.stopPropagation(); onAdd(anime); }} className={`absolute bottom-3 right-3 w-[34px] h-[34px] text-lg rounded-full opacity-0 group-hover:opacity-100 transition-all flex items-center justify-center font-bold hover:scale-110 shadow-md border-none ${theme === 'dark' ? 'bg-white text-black' : 'bg-black text-white'}`} title="加入待播清單">
-        +
-      </button>
+ 
+      {isAlreadyInList ? (
+        <div className={`absolute bottom-3 right-3 w-[34px] h-[34px] text-lg rounded-full opacity-0 group-hover:opacity-100 transition-all flex items-center justify-center font-bold shadow-md border border-transparent leading-none pt-[2px] ${theme === 'dark' ? 'bg-[#222] text-[#dbe6ff]' : 'bg-gray-100 text-[#556376]'}`} title="已在清單中">
+          ✓
+        </div>
+      ) : (
+        <button onClick={(e) => { e.stopPropagation(); onAdd(anime); }} className={`absolute bottom-3 right-3 w-[34px] h-[34px] text-lg rounded-full opacity-0 group-hover:opacity-100 transition-all flex items-center justify-center font-bold hover:scale-110 shadow-md border-none leading-none pb-[2px] ${theme === 'dark' ? 'bg-white text-black' : 'bg-black text-white'}`} title="加入待播清單">
+          +
+        </button>
+      )}
     </div>
   );
 }
-
-function AnimeCardHorizontal({ anime, onClick, onAdd, theme }) {
+ 
+function AnimeCardHorizontal({ anime, onClick, onAdd, theme, myPlaylist }) {
   const displayDate = anime.season && anime.year 
     ? `${anime.season} ${anime.year}` 
     : (anime.year ? anime.year : (anime.airDateStr ? anime.airDateStr.split('-')[0] : ''));
-
+ 
+  const isAlreadyInList = myPlaylist.some(item => item.id === anime.id);
+ 
   return (
-    // 這裡同樣補上 h-full
     <div className={`flex gap-4 p-3 cursor-pointer relative group transition-all hover:shadow-lg rounded-2xl border w-full h-full ${theme === 'dark' ? 'bg-[#141414] border-transparent hover:border-[#333]' : 'bg-white border-transparent hover:border-gray-100'}`} onClick={onClick}>
       <img src={anime.imageUrl} alt={anime.title} className={`w-[85px] h-[125px] object-cover rounded-[12px] shrink-0 shadow-sm transition-transform group-hover:scale-[1.02] ${theme === 'dark' ? 'bg-[#222]' : 'bg-gray-100'}`} />
       <div className="flex flex-col flex-1 py-1 min-w-0">
@@ -1031,38 +1224,44 @@ function AnimeCardHorizontal({ anime, onClick, onAdd, theme }) {
           ))}
         </div>
       </div>
-
-      <button onClick={(e) => { e.stopPropagation(); onAdd(anime); }} className={`absolute bottom-3 right-3 w-7 h-7 rounded-full opacity-0 group-hover:opacity-100 transition-all flex items-center justify-center font-bold hover:scale-110 shadow-md border-none ${theme === 'dark' ? 'bg-white text-black' : 'bg-black text-white'}`} title="加入待播清單">
-        +
-      </button>
+ 
+      {isAlreadyInList ? (
+        <div className={`absolute bottom-3 right-3 w-7 h-7 text-xs rounded-full opacity-0 group-hover:opacity-100 transition-all flex items-center justify-center font-bold shadow-md border border-transparent leading-none pt-[1px] ${theme === 'dark' ? 'bg-[#222] text-[#dbe6ff]' : 'bg-gray-100 text-[#556376]'}`} title="已在清單中">
+          ✓
+        </div>
+      ) : (
+        <button onClick={(e) => { e.stopPropagation(); onAdd(anime); }} className={`absolute bottom-3 right-3 w-7 h-7 rounded-full opacity-0 group-hover:opacity-100 transition-all flex items-center justify-center font-bold hover:scale-110 shadow-md border-none leading-none pb-[2px] ${theme === 'dark' ? 'bg-white text-black' : 'bg-black text-white'}`} title="加入待播清單">
+          +
+        </button>
+      )}
     </div>
   );
 }
-
-function CatalogView({ searchQuery, onAdd, onOpenModal, theme }) {
+ 
+function CatalogView({ searchQuery, onAdd, onOpenModal, theme, myPlaylist }) {
   const FORMATS = [
-    { id: '全部', label: 'All' },
+    { id: 'All', label: 'All' },
     { id: 'TV', label: 'TV' },
     { id: 'ONA', label: 'ONA' },
     { id: 'OVA', label: 'OVA' },
     { id: 'MOVIE', label: 'MOVIE' }
   ];
   
-  const [activeFormat, setActiveFormat] = useState('全部'); 
-  const [activeGenre, setActiveGenre] = useState('全部');
+  const [activeFormat, setActiveFormat] = useState('All'); 
+  const [activeGenre, setActiveGenre] = useState('All');
   const [activeSort, setActiveSort] = useState('SCORE_DESC');
-  const [activeYear, setActiveYear] = useState('全部');
-  const [activeSeason, setActiveSeason] = useState('全部');
-  const [activeStatus, setActiveStatus] = useState('全部');
+  const [activeYear, setActiveYear] = useState('All');
+  const [activeSeason, setActiveSeason] = useState('All');
+  const [activeStatus, setActiveStatus] = useState('All');
   
   const [data, setData] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [apiError, setApiError] = useState(null);
-
+ 
   useEffect(() => { setCurrentPage(1); }, [searchQuery, activeGenre, activeSort, activeYear, activeSeason, activeFormat, activeStatus]);
-
+ 
   useEffect(() => {
     let isMounted = true;
     const fetchFilteredData = async () => {
@@ -1080,40 +1279,40 @@ function CatalogView({ searchQuery, onAdd, onOpenModal, theme }) {
           }
           return;
       }
-
+ 
       try {
         let variables = { page: currentPage, sort: [activeSort] };
         
         if (searchQuery) variables.search = searchQuery;
-        if (activeFormat !== '全部') variables.format = activeFormat;
+        if (activeFormat !== 'All') variables.format = activeFormat;
         
-        if (activeGenre !== '全部') {
+        if (activeGenre !== 'All') {
           variables.genre = activeGenre;
         }
         
-        if (activeYear === '即將上映') variables.status = 'NOT_YET_RELEASED';
-        else if (activeYear !== '全部' && activeYear !== '2000以前') {
+        if (activeYear !== 'All' && activeYear !== '2000以前') {
            variables.seasonYear = parseInt(activeYear);
-           if (activeSeason !== '全部') variables.season = activeSeason.toUpperCase();
+           if (activeSeason !== 'All') variables.season = activeSeason.toUpperCase();
         }
         
-        if (activeStatus !== '全部' && activeYear !== '即將上映') {
+        if (activeStatus !== 'All') {
             if (activeStatus === 'RELEASING') variables.status = 'RELEASING';
             else if (activeStatus === 'FINISHED') variables.status = 'FINISHED';
             else if (activeStatus === 'UPCOMING') variables.status = 'NOT_YET_RELEASED';
         }
-
+ 
+        // 【修改處】在 coverImage 後加上 extraLarge
         const query = `
           query($page: Int, $search: String, $format: MediaFormat, $genre: String, $status: MediaStatus, $seasonYear: Int, $season: MediaSeason, $sort: [MediaSort]) {
-            Page(page: $page, perPage: 24) {
+            Page(page: $page, perPage: 40) {
               pageInfo { lastPage }
               media(search: $search, format: $format, genre: $genre, status: $status, seasonYear: $seasonYear, season: $season, type: ANIME, countryOfOrigin: "JP", sort: $sort, isAdult: false) {
-                id title { romaji english native } coverImage { large } meanScore popularity episodes status format genres season seasonYear description nextAiringEpisode { airingAt } startDate { year month day } isAdult
+                id title { romaji english native } coverImage { extraLarge large } meanScore popularity episodes status format genres season seasonYear description nextAiringEpisode { airingAt episode } startDate { year month day } isAdult
               }
             }
           }
         `;
-
+ 
         const resData = await fetchAniList(query, variables);
         
         if (isMounted && resData.Page) {
@@ -1139,9 +1338,9 @@ function CatalogView({ searchQuery, onAdd, onOpenModal, theme }) {
     const timeoutId = setTimeout(fetchFilteredData, 400);
     return () => { isMounted = false; clearTimeout(timeoutId); };
   }, [searchQuery, activeGenre, activeSort, activeYear, activeSeason, activeFormat, activeStatus, currentPage]);
-
+ 
   const hasNextPage = currentPage < totalPages;
-
+ 
   return (
     <div className={`h-full overflow-y-auto px-6 lg:px-16 py-10 pb-24 scrollbar-hide transition-colors duration-300 ${theme === 'dark' ? 'bg-[#0a0a0a]' : 'bg-white'}`}>
       <div className="max-w-[1600px] mx-auto">
@@ -1168,17 +1367,17 @@ function CatalogView({ searchQuery, onAdd, onOpenModal, theme }) {
             <div className="flex items-center gap-6 overflow-x-auto scrollbar-hide">
               <span className={`text-xs font-bold uppercase tracking-wider shrink-0 w-12 transition-colors duration-300 ${theme === 'dark' ? 'text-white' : 'text-black'}`}>Status</span>
               <div className="flex gap-2 w-max">
-                {['全部', 'RELEASING', 'FINISHED', 'UPCOMING'].map(s => (
+                {['All', 'UPCOMING', 'RELEASING', 'FINISHED'].map(s => (
                   <button 
                     key={`status-${s}`} 
                     onClick={() => { setActiveStatus(s); setCurrentPage(1); }} 
                     className={`shrink-0 px-4 py-1.5 rounded-none border-none text-xs font-bold transition-all whitespace-nowrap ${activeStatus === s ? (theme === 'dark' ? 'bg-white text-black' : 'bg-black text-white') : `${theme === 'dark' ? 'bg-[#1a1a1a] hover:bg-[#333]' : 'bg-gray-100 hover:bg-gray-200'} text-gray-500`}`}>
-                    {s === '全部' ? '全部' : s === 'RELEASING' ? '連載中' : s === 'FINISHED' ? '已完結' : '即將上映'}
+                    {s === 'All' ? 'All' : s === 'UPCOMING' ? 'Upcoming' : s === 'RELEASING' ? 'Airing' : 'Finished'}
                   </button>
                 ))}
               </div>
             </div>
-
+ 
             <div className="flex items-center gap-6 overflow-x-auto scrollbar-hide">
               <span className={`text-xs font-bold uppercase tracking-wider shrink-0 w-12 transition-colors duration-300 ${theme === 'dark' ? 'text-white' : 'text-black'}`}>Genre</span>
               <div className="flex gap-2 w-max">
@@ -1192,7 +1391,7 @@ function CatalogView({ searchQuery, onAdd, onOpenModal, theme }) {
                 ))}
               </div>
             </div>
-
+ 
             <div className="flex items-center gap-6 overflow-x-auto scrollbar-hide">
               <span className={`text-xs font-bold uppercase tracking-wider shrink-0 w-12 transition-colors duration-300 ${theme === 'dark' ? 'text-white' : 'text-black'}`}>Year</span>
               <div className="flex gap-2 w-max">
@@ -1202,7 +1401,7 @@ function CatalogView({ searchQuery, onAdd, onOpenModal, theme }) {
                     onClick={() => { 
                       setActiveYear(y); 
                       setCurrentPage(1);
-                      if (y === '全部' || y === '2000以前' || y === '即將上映') setActiveSeason('全部'); 
+                      if (y === 'All' || y === '2000以前') setActiveSeason('All'); 
                     }} 
                     className={`shrink-0 px-4 py-1.5 rounded-none border-none text-xs font-bold transition-all whitespace-nowrap ${activeYear === y ? (theme === 'dark' ? 'bg-white text-black' : 'bg-black text-white') : `${theme === 'dark' ? 'bg-[#1a1a1a] hover:bg-[#333]' : 'bg-gray-100 hover:bg-gray-200'} text-gray-500`}`}>
                     {y}
@@ -1210,8 +1409,8 @@ function CatalogView({ searchQuery, onAdd, onOpenModal, theme }) {
                 ))}
               </div>
             </div>
-
-            <div className={`flex items-center gap-6 overflow-x-auto scrollbar-hide transition-opacity ${['全部', '2000以前', '即將上映'].includes(activeYear) ? 'opacity-20 pointer-events-none' : ''}`}>
+ 
+            <div className={`flex items-center gap-6 overflow-x-auto scrollbar-hide transition-opacity ${['All', '2000以前'].includes(activeYear) ? 'opacity-20 pointer-events-none' : ''}`}>
               <span className={`text-xs font-bold uppercase tracking-wider shrink-0 w-12 transition-colors duration-300 ${theme === 'dark' ? 'text-white' : 'text-black'}`}>Season</span>
               <div className="flex gap-2 w-max">
                 {UI_SEASONS.map(s => (
@@ -1231,13 +1430,13 @@ function CatalogView({ searchQuery, onAdd, onOpenModal, theme }) {
               <span className={`text-[10px] font-bold uppercase tracking-wider ${theme === 'dark' ? 'text-gray-500' : 'text-gray-400'}`}>Sort by</span>
               <button onClick={() => { setActiveSort('SCORE_DESC'); setCurrentPage(1); }} className={`text-xs font-bold transition-colors border-none bg-transparent p-0 ${activeSort === 'SCORE_DESC' ? (theme === 'dark' ? 'text-white' : 'text-black') : (theme === 'dark' ? 'text-gray-500 hover:text-gray-300' : 'text-gray-400 hover:text-gray-600')}`}>Top Rated</button>
               <span className={theme === 'dark' ? 'text-gray-700' : 'text-gray-200'}>/</span>
-              <button onClick={() => { setActiveSort('POPULARITY_DESC'); setCurrentPage(1); }} className={`text-xs font-bold transition-colors border-none bg-transparent p-0 ${activeSort === 'POPULARITY_DESC' ? (theme === 'dark' ? 'text-white' : 'text-black') : (theme === 'dark' ? 'text-gray-500 hover:text-gray-300' : 'text-gray-400 hover:text-gray-600')}`}>Trending Now</button>
+              <button onClick={() => { setActiveSort('POPULARITY_DESC'); setCurrentPage(1); }} className={`text-xs font-bold transition-colors border-none bg-transparent p-0 ${activeSort === 'POPULARITY_DESC' ? (theme === 'dark' ? 'text-white' : 'text-black') : (theme === 'dark' ? 'text-gray-500 hover:text-gray-300' : 'text-gray-400 hover:text-gray-600')}`}>Top Trends</button>
               <span className={theme === 'dark' ? 'text-gray-700' : 'text-gray-200'}>/</span>
               <button onClick={() => { setActiveSort('START_DATE_DESC'); setCurrentPage(1); }} className={`text-xs font-bold transition-colors border-none bg-transparent p-0 ${activeSort === 'START_DATE_DESC' ? (theme === 'dark' ? 'text-white' : 'text-black') : (theme === 'dark' ? 'text-gray-500 hover:text-gray-300' : 'text-gray-400 hover:text-gray-600')}`}>Latest</button>
             </div>
           </div>
         </div>
-
+ 
         {isLoading ? (
           <div className={`text-center py-32 font-mono text-sm flex flex-col items-center ${theme === 'dark' ? 'text-gray-500' : 'text-gray-400'}`}>
             <svg className={`animate-spin h-6 w-6 mb-4 ${theme === 'dark' ? 'text-white' : 'text-black'}`} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
@@ -1253,11 +1452,10 @@ function CatalogView({ searchQuery, onAdd, onOpenModal, theme }) {
           </div>
         ) : (
           <>
-            {/* 保留 4 欄的設定 */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-10 w-full mx-auto">
               {data.map((anime) => (
                 <div key={`cat-${anime.id}`} className="w-full">
-                  <AnimeCardHorizontal anime={anime} onAdd={() => onAdd(anime, LIST_STATUS.PLANNED)} onClick={() => onOpenModal(anime)} theme={theme} />
+                  <AnimeCardHorizontal anime={anime} onAdd={() => onAdd(anime, LIST_STATUS.PLANNED)} onClick={() => onOpenModal(anime)} theme={theme} myPlaylist={myPlaylist} />
                 </div>
               ))}
             </div>
@@ -1275,28 +1473,28 @@ function CatalogView({ searchQuery, onAdd, onOpenModal, theme }) {
     </div>
   );
 }
-
+ 
 function ProfileView({ playlist, onUpdateProgress, onChangeStatus, onRemove, onOpenModal, theme }) {
   const [activeTab, setActiveTab] = useState(LIST_STATUS.WATCHING);
   const [sortOrder, setSortOrder] = useState('newest'); 
-  const [activeFormat, setActiveFormat] = useState('全部'); 
-
+  const [activeFormat, setActiveFormat] = useState('All'); 
+ 
   const tabs = [
     { id: LIST_STATUS.WATCHING, label: 'Watching' },
     { id: LIST_STATUS.PLANNED, label: 'Plan to Watch' },
     { id: LIST_STATUS.COMPLETED, label: 'Completed' }
   ];
   
-  const FORMATS = ['全部', 'TV', 'ONA', 'MOVIE'];
-
+  const FORMATS = ['All', 'TV', 'ONA', 'MOVIE'];
+ 
   const currentList = playlist.filter(item => {
     if (activeTab === LIST_STATUS.WATCHING) {
       return item.status === activeTab;
     } else {
-      return item.status === activeTab && (activeFormat === '全部' || item.format === activeFormat);
+      return item.status === activeTab && (activeFormat === 'All' || item.format === activeFormat);
     }
   });
-
+ 
   const sortedList = useMemo(() => {
     let list = [...currentList];
     if (activeTab === LIST_STATUS.PLANNED || activeTab === LIST_STATUS.COMPLETED) {
@@ -1317,20 +1515,20 @@ function ProfileView({ playlist, onUpdateProgress, onChangeStatus, onRemove, onO
           }
           return year * 10 + seasonVal; 
         };
-
+ 
         const scoreA = getScore(a);
         const scoreB = getScore(b);
-
+ 
         if (scoreA === 0 && scoreB !== 0) return 1; 
         if (scoreB === 0 && scoreA !== 0) return -1;
-
+ 
         if (sortOrder === 'newest') return scoreB - scoreA;
         return scoreA - scoreB;
       });
     }
     return list;
   }, [currentList, activeTab, sortOrder]);
-
+ 
   return (
     <div className={`h-full overflow-y-auto px-6 lg:px-16 py-10 pb-24 scrollbar-hide transition-colors duration-300 ${theme === 'dark' ? 'bg-[#0a0a0a]' : 'bg-white'}`}>
       <div className="max-w-[1600px] mx-auto">
@@ -1345,20 +1543,20 @@ function ProfileView({ playlist, onUpdateProgress, onChangeStatus, onRemove, onO
             M
           </div>
         </div>
-
+ 
         <div className={`flex flex-col xl:flex-row justify-between xl:items-end gap-6 mb-10 border-b pb-2 transition-colors duration-300 ${theme === 'dark' ? 'border-[#1a1a1a]' : 'border-gray-50'}`}>
           <div className="flex gap-8 overflow-x-auto scrollbar-hide shrink-0">
             {tabs.map(tab => (
-              <button key={tab.id} onClick={() => { setActiveTab(tab.id); setActiveFormat('全部'); }} className={`pb-2 text-sm font-bold transition-colors border-none bg-transparent relative shrink-0 ${activeTab === tab.id ? (theme === 'dark' ? 'text-white' : 'text-black') : (theme === 'dark' ? 'text-gray-500 hover:text-white' : 'text-gray-400 hover:text-black')}`}>
+              <button key={tab.id} onClick={() => { setActiveTab(tab.id); setActiveFormat('All'); }} className={`pb-2 text-sm font-bold transition-colors border-none bg-transparent relative shrink-0 ${activeTab === tab.id ? (theme === 'dark' ? 'text-white' : 'text-black') : (theme === 'dark' ? 'text-gray-500 hover:text-white' : 'text-gray-400 hover:text-black')}`}>
                 {tab.label}
                 <span className={`ml-2 text-[10px] px-2 py-0.5 rounded-none transition-colors duration-300 ${activeTab === tab.id ? (theme === 'dark' ? 'bg-white text-black' : 'bg-black text-white') : (theme === 'dark' ? 'bg-[#1a1a1a] text-gray-400' : 'bg-gray-100 text-gray-500')}`}>
-                    {activeTab === LIST_STATUS.WATCHING ? playlist.filter(i => i.status === tab.id).length : playlist.filter(i => i.status === tab.id && (activeFormat === '全部' || i.format === activeFormat)).length}
+                    {activeTab === LIST_STATUS.WATCHING ? playlist.filter(i => i.status === tab.id).length : playlist.filter(i => i.status === tab.id && (activeFormat === 'All' || i.format === activeFormat)).length}
                 </span>
                 {activeTab === tab.id && <div className={`absolute -bottom-2 left-0 w-full h-0.5 transition-colors duration-300 ${theme === 'dark' ? 'bg-white' : 'bg-black'}`}></div>}
               </button>
             ))}
           </div>
-
+ 
           {(activeTab === LIST_STATUS.PLANNED || activeTab === LIST_STATUS.COMPLETED) && (
             <div className="flex flex-wrap items-center gap-4 xl:gap-6 mb-2">
                 <div className="flex items-center gap-3 overflow-x-auto scrollbar-hide">
@@ -1375,7 +1573,7 @@ function ProfileView({ playlist, onUpdateProgress, onChangeStatus, onRemove, onO
                 </div>
                 
                 <div className={`hidden xl:block w-[1px] h-3 ${theme === 'dark' ? 'bg-gray-700' : 'bg-gray-200'}`}></div>
-
+ 
                 <div className="flex items-center gap-3 shrink-0">
                     <span className={`text-[10px] font-bold uppercase tracking-wider ${theme === 'dark' ? 'text-gray-500' : 'text-gray-400'}`}>Date</span>
                     <button onClick={() => setSortOrder('newest')} className={`text-xs font-bold transition-colors border-none bg-transparent p-0 ${sortOrder === 'newest' ? (theme === 'dark' ? 'text-white' : 'text-black') : (theme === 'dark' ? 'text-gray-500 hover:text-gray-300' : 'text-gray-400 hover:text-gray-600')}`}>Newest</button>
@@ -1385,7 +1583,7 @@ function ProfileView({ playlist, onUpdateProgress, onChangeStatus, onRemove, onO
             </div>
           )}
         </div>
-
+ 
         {sortedList.length === 0 ? (
           <div className={`text-center py-24 border border-dashed text-sm font-mono rounded-none transition-colors duration-300 ${theme === 'dark' ? 'bg-[#111] border-[#222] text-gray-500' : 'bg-gray-50 border-gray-100 text-gray-400'}`}>
             List is empty.
@@ -1394,7 +1592,7 @@ function ProfileView({ playlist, onUpdateProgress, onChangeStatus, onRemove, onO
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 w-full mx-auto">
             {sortedList.map(anime => {
                const isWatching = activeTab === LIST_STATUS.WATCHING;
-
+ 
                return (
                 <div key={`profile-${anime.id}`} className={`p-4 flex gap-4 relative group transition-all border rounded-2xl ${theme === 'dark' ? 'bg-[#141414] border-transparent hover:border-[#333]' : 'bg-white border-gray-50 hover:border-gray-200'}`}>
                   <img src={anime.imageUrl} alt="poster" className={`w-[90px] h-[130px] object-cover rounded-[12px] cursor-pointer shrink-0 shadow-sm hover:scale-[1.02] transition-transform ${theme === 'dark' ? 'bg-[#222]' : 'bg-gray-100'}`} onClick={() => onOpenModal(anime)} />
@@ -1423,7 +1621,7 @@ function ProfileView({ playlist, onUpdateProgress, onChangeStatus, onRemove, onO
                     <div className="mt-auto">
                       {isWatching && (
                         <>
-                          <div className={`flex justify-between items-center text-[10px] mb-2 font-bold uppercase tracking-wider ${theme === 'dark' ? 'text-gray-500' : 'text-gray-400'}`}>
+                          <div className={`flex justify-between items-center text-[10px] mb-2 font-mono ${theme === 'dark' ? 'text-gray-500' : 'text-gray-400'}`}>
                             <span>Progress</span>
                             <span className={theme === 'dark' ? 'text-white' : 'text-black'}>{anime.watched} / {anime.eps || '?'}</span>
                           </div>
@@ -1456,7 +1654,7 @@ function ProfileView({ playlist, onUpdateProgress, onChangeStatus, onRemove, onO
     </div>
   );
 }
-
+ 
 function CheckIcon({className}) {
   return <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7"></path></svg>;
 }
